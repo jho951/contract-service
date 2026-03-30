@@ -14,6 +14,8 @@ AI 에이전트가 서비스 레포를 수정할 때, 계약 Source of Truth를 
   - User: `User-server` / `main`
   - Redis: `Redis-server` / `main`
   - Block: `Block-server` / `dev`
+  - Editor-page: `Editor-page` / `main`
+  - Explain-page: `Explain-page` / `main`
 - 변경 유형: non-breaking 또는 breaking
 - 관련 계약 문서 경로
   - `contracts/routing.md`
@@ -39,6 +41,8 @@ AI 에이전트가 서비스 레포를 수정할 때, 계약 Source of Truth를 
 - User: 사용자/소셜 링크 소유권, `/users/**`, `/internal/users/**` 계약 수용
 - Redis: 세션/캐시 저장 계층 운영 계약
 - Block(dev): 문서/블록 도메인 API 계약 수용
+- Editor-page: 계약 API를 소비하는 프론트엔드 UI/플로우 반영
+- Explain-page: 계약 API를 소비하는 프론트엔드 UI/플로우 반영
 
 ## 5) PR 체크리스트
 - [ ] 계약 문서 수정 완료

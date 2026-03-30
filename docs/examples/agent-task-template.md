@@ -19,6 +19,8 @@
 - `User-server (main)`:
 - `Redis-server (main)`:
 - `Block-server (dev)`:
+- `Editor-page (main)`:
+- `Explain-page (main)`:
 
 ## Change Plan
 1. contract 문서/OpenAPI 갱신

@@ -8,6 +8,8 @@
    - user
    - redis
    - block(dev)
+   - editor-page
+   - explain-page
 3. 변경 유형
    - Non-breaking
    - Breaking

@@ -7,6 +7,9 @@
 
 이 스크립트는 서비스 코드 변경 파일을 보고 계약 영향 영역(`routing/headers/security/errors/env`)을 감지합니다.
 영향이 있으면 PR 내에서 `CONTRACT_SYNC.md` 갱신이 있었는지 검사합니다.
+현재 스크립트는 `gateway`, `auth`, `user`, `redis`, `block` 서비스만 지원합니다.
+`Editor-page`와 `Explain-page` 같은 프론트엔드 소비자 레포는 동일한 `CONTRACT_SYNC.md` 형식을 유지하되,
+별도 CI나 수동 검토로 계약 동기화를 관리합니다.
 
 ## 사용법 (서비스 레포에서 실행)
 ```bash

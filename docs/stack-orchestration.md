@@ -28,6 +28,7 @@
   - block: `dev`
 
 ## Notes
+- 이 스크립트는 백엔드 MSA 스택만 기동합니다. `Editor-page`와 `Explain-page`는 별도 프론트엔드 레포에서 관리합니다.
 - `Auth-server`는 `.env.dev`가 있으면 우선 사용하고, 없으면 fallback 기본값으로 기동을 시도합니다.
 - 단, OAuth/실운영 인증까지 포함한 정상 동작은 `contracts/env.md`의 필수값 설정이 필요합니다.
 - 일부 서비스가 shared network에 기본 미조인인 경우, 스크립트가 `docker network connect --alias`로 보정합니다.

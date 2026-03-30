@@ -8,11 +8,16 @@ MSA 간 인터페이스(라우트, 헤더, 보안, 에러, 환경변수, OpenAPI
 - 계약 드리프트 방지(개별 레포 문서와 실제 동작 불일치 최소화)
 
 ## 적용 대상
+### 백엔드 MSA 서비스
 - `Api-gateway-server` (main)
 - `Auth-server` (main)
 - `User-server` (main)
 - `Redis-server` (main)
 - `Block-server` (dev)
+
+### 프론트엔드 계약 소비자
+- `Editor-page` (main)
+- `Explain-page` (main)
 
 ## 문서 인덱스
 - [서비스 소유권](contracts/service-ownership.md)
@@ -27,6 +32,11 @@ MSA 간 인터페이스(라우트, 헤더, 보안, 에러, 환경변수, OpenAPI
 - [도입 플레이북](docs/adoption-playbook.md)
 - [AI Agent 플레이북](docs/ai-agent-playbook.md)
 - [계약 자동화](docs/contract-automation.md)
+- [CONTRACT_SYNC 예시 템플릿](docs/examples/contract-sync-template.md)
+- [README Contract Source 예시](docs/examples/readme-contract-source-frontend.md)
+- [Editor-page CONTRACT_SYNC 초안](docs/examples/CONTRACT_SYNC.editor-page.md)
+- [Explain-page CONTRACT_SYNC 초안](docs/examples/CONTRACT_SYNC.explain-page.md)
+- [OAuth2 소셜 프로비저닝 예시](docs/examples/user-social-provisioning.md)
 - OpenAPI
   - `contracts/openapi/gateway-edge.v1.yaml`
   - `contracts/openapi/user-service.v1.yaml`
@@ -36,10 +46,10 @@ MSA 간 인터페이스(라우트, 헤더, 보안, 에러, 환경변수, OpenAPI
 ## 빠른 실행
 
 ```bash
-# 전체 서비스 레포 동기화 + 네트워크 준비
+# 백엔드 서비스 레포 동기화 + 네트워크 준비
 ./scripts/msa-stack.sh init
 
-# 전체 compose up
+# 백엔드 MSA compose up
 ./scripts/msa-stack.sh up
 
 # 상태 확인

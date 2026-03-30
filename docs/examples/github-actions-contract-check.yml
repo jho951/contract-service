@@ -17,6 +17,7 @@ jobs:
 
       - name: Run contract impact check
         env:
+          # Change this to the service name for the target repository.
           SERVICE_NAME: auth
         run: |
           curl -fsSL https://raw.githubusercontent.com/jho951/contract/main/scripts/contract-impact-check.sh -o /tmp/contract-impact-check.sh

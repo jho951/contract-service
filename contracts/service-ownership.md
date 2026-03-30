@@ -7,6 +7,10 @@
 - `Redis-server` (branch: `main`): 캐시/세션 저장 계층 운영 표준
 - `Block-server` (branch: `dev`): 문서/워크스페이스 도메인
 
+## Contract Consumers
+- `Editor-page` (branch: `main`): 에디터 UI, 계약 API 소비자
+- `Explain-page` (branch: `main`): 설명 UI, 계약 API 소비자
+
 ## 주의
 - 코드 SoT는 위 각 서비스 레포
 - 인터페이스 SoT는 본 `contract` 레포
