@@ -67,6 +67,21 @@ conditions:
 3. inherited `ALLOW`
 4. default deny
 
+## 판단 체크리스트
+정책이나 API를 추가할 때 아래 질문으로 먼저 분해한다.
+
+1. 이 권한은 `role`만으로 충분한가, 아니면 `condition`이 필요한가?
+2. 이 기능은 문서 협업 편의 기능인가, 아니면 보안상 중요한 권한인가?
+3. 이 권한은 토큰 안에 넣어도 되는 수준인가, 아니면 항상 현재 상태 조회가 필요한가?
+4. 이 변경이 일어나면 어떤 캐시를 무효화해야 하는가?
+5. 이 판단은 `Gateway`, `Authz`, `Editor` 중 어디가 최종 책임을 져야 하는가?
+
+## 해석 규칙
+- `role`만으로 충분하지 않으면 `condition`을 반드시 추가한다.
+- 보안상 중요한 권한이면 토큰만 믿지 않고 `introspection` 또는 현재 상태 재평가를 요구한다.
+- 캐시 무효화가 명확하지 않으면 TTL만으로 운영하지 않는다.
+- 최종 허용/거부가 도메인 실행과 결합되면 `Editor`가 최종 집행자가 된다.
+
 ## v1 / v2 경계
 - v1은 관리자 RBAC와 기본 정책 판정 중심이다.
 - v2는 policy engine, delegation, introspection, cache invalidation을 포함한다.

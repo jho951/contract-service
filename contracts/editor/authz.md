@@ -48,3 +48,4 @@ Editor 서버의 권한 규칙은 `createdBy` 기반 소유권과 Gateway가 주
 - 인증 정보 자체가 없거나 Gateway 컨텍스트가 누락된 경우는 `401` 또는 Gateway 차단으로 처리한다.
 - 소유권 검사는 Document 기준으로 먼저 수행하고, Block은 Document 권한을 상속한다.
 - 최종 실행 직전에는 capability truth와 현재 리소스 소유권을 함께 확인한다.
+- 권한 추가/변경 시에는 `role`, `condition`, `token scope`, `cache invalidation`, `final enforcement` 관점으로 다시 검토한다.

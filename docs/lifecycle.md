@@ -16,6 +16,7 @@
 - 캐시
 - 응답/에러
 - 환경변수/OpenAPI
+- 권한/기능/정책 판단은 `contracts/common/decision-criteria.md`를 먼저 본다.
 
 ### 2) contract 갱신
 - 관련 문서를 먼저 수정한다.
@@ -56,6 +57,10 @@
   - `contracts/gateway/cache.md`
   - `contracts/gateway/env.md`
   - `Api-gateway-server` 구현 반영
+
+## 공통 판단 기준
+- 새 권한이나 기능을 추가할 때는 서비스별 문서보다 먼저 `contracts/common/decision-criteria.md`를 확인한다.
+- `role`, `condition`, token scope, cache invalidation, final enforcement를 같은 판단 축으로 본다.
 
 ## 자동화 연결
 - 서비스 PR은 contract 영향 여부를 검사한다.

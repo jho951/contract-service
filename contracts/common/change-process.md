@@ -14,3 +14,4 @@
 - [ ] Breaking 여부 명시
 - [ ] 마이그레이션 가이드 작성
 - [ ] 각 서비스 적용 상태 기록
+- [ ] 권한/기능 추가 시 `contracts/common/decision-criteria.md` 기준 검토
