@@ -25,6 +25,7 @@
 - `contracts/common/security.md`
 - `contracts/common/auth-channel-policy.md`
 - `contracts/common/env.md`
+- `docs/module-ecosystem.md`
 - `contracts/auth/README.md`
 - `contracts/auth/api.md`
 - `contracts/auth/v2.md`
@@ -135,6 +136,7 @@
   - `user-errors`
   - `user-v2-extension`
   - `user-visibility`
+  - `module-ecosystem`
   - `openapi`
 - Affected Flows:
   - `Gateway 인증 프록시`

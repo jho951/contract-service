@@ -14,6 +14,7 @@ MSA 전반에서 공유하는 공통 계약 허브다.
 - [Adoption Matrix](adoption-matrix.md)
 - [Change Process](change-process.md)
 - [Versioning Policy](versioning.md)
+- [Module Ecosystem](../../docs/module-ecosystem.md)
 
 ## 서비스 허브
 백엔드 서비스별 세부 계약은 아래 허브에서 확인한다.

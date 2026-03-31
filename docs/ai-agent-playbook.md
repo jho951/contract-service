@@ -19,6 +19,7 @@ AI 에이전트가 서비스 레포를 수정할 때, 계약 Source of Truth를 
   - Explain-page: `Explain-page` / `main`
 - 변경 유형: non-breaking 또는 breaking
 - 관련 계약 문서 경로
+  - `docs/module-ecosystem.md`
   - `contracts/common/routing.md`
   - `contracts/common/headers.md`
   - `contracts/common/security.md`
@@ -66,6 +67,7 @@ AI 에이전트가 서비스 레포를 수정할 때, 계약 Source of Truth를 
 - Block(dev): 문서/블록 도메인 API 계약 수용
 - Editor-page: 계약 API를 소비하는 프론트엔드 UI/플로우 반영
 - Explain-page: 계약 API를 소비하는 프론트엔드 UI/플로우 반영
+- Shared modules: `Ui-components-module`, `auth`, `audit-log`, `rate-limiter`, `feature-flag`, `policy-config`는 [Module Ecosystem](module-ecosystem.md)를 기준으로 기록한다.
 
 ## 5) PR 체크리스트
 - [ ] 계약 문서 수정 완료

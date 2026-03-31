@@ -28,6 +28,7 @@ MSA 간 인터페이스(라우트, 헤더, 보안, 에러, 환경변수, OpenAPI
 - [Redis](contracts/redis/README.md)
 - [Gateway](contracts/gateway/README.md)
 - [Editor](contracts/editor/README.md)
+- [Module Ecosystem](docs/module-ecosystem.md)
 
 ## 빠른 실행
 

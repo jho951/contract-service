@@ -55,6 +55,7 @@
 
 ## Frontend Notes
 - Gateway 노출 경로는 `/v1/**` 기준으로만 사용한다.
+- UI 공통 컴포넌트는 `Ui-components-module`을 사용하며, 이 의존성은 모듈 생태계 문서에 기록한다.
 - 현재 편집 화면은 `contracts/editor/api.md` 및 `contracts/openapi/editor.v1.yaml`과 맞춘다.
 - 문서 목록, 상세, 블록 조회는 editor v1 API와 block-service OpenAPI를 함께 본다.
 - 인증이 필요한 화면은 `Authorization: Bearer <token>` 전송을 전제로 한다.

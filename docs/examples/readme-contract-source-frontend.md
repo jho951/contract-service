@@ -11,6 +11,7 @@ Use one of these blocks near the top of the frontend README files.
 - Branch: main
 
 ## Contract Scope
+- Uses `Ui-components-module` for shared UI components
 - Current v1 document and block flows
 - Document tree operations: list, detail, edit, save, move, restore, trash
 - Block content editing and ordering
@@ -26,6 +27,7 @@ Use one of these blocks near the top of the frontend README files.
 - Branch: main
 
 ## Contract Scope
+- Uses `Ui-components-module` for shared UI components
 - Login, refresh, logout, and session handling
 - User context and social-link flows exposed through the gateway
 ```

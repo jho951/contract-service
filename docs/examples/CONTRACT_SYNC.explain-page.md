@@ -39,6 +39,7 @@
 
 ## Frontend Notes
 - 게이트웨이를 통해 노출되는 경로와 직접 호출하는 내부 경로를 구분한다.
+- UI 공통 컴포넌트는 `Ui-components-module`을 사용하며, 이 의존성은 모듈 생태계 문서에 기록한다.
 - 로그인/리다이렉트 흐름은 `contracts/openapi/auth-service.v1.yaml`과 맞춘다.
 - 사용자 상태, 소셜 링크, 현재 사용자 조회는 `contracts/openapi/user-service.v1.yaml`과 맞춘다.
 - 인증 실패 시의 리다이렉트/에러 화면 처리도 계약 변경 영향 범위에 포함한다.
