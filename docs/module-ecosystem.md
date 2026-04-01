@@ -15,11 +15,11 @@
 ## 현재 서버 모듈
 | Module | Repo | Purpose |
 | --- | --- | --- |
-| `auth` | `https://github.com/jho951/auth` | 인증/세션/JWT 발급 관련 핵심 모듈 |
+| `auth` | `https://github.com/jho951/auth` | 현재 적용 중인 인증/세션/JWT 발급 핵심 모듈 |
 | `audit-log` | `https://github.com/jho951/audit-log` | 감사 추적과 운영 이벤트 기록 모듈 |
 
 ### 현재 상태
-- `auth`는 인증 원천과 세션 발급 흐름에 사용한다.
+- `auth`는 현재 Auth-server에서 실제 인증 원천과 세션 발급 흐름에 사용한다.
 - `audit-log`는 권한/인증/운영 이벤트의 추적과 증적에 사용한다.
 - 두 모듈은 현재 아키텍처의 필수 기반이며, contract 문서는 이들의 책임 경계를 서비스 계약과 함께 고정한다.
 
