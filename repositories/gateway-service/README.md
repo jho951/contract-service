@@ -19,6 +19,13 @@ Gateway는 외부 public API의 진입점이다. Public route versioning, 인증
 | Upstream routing | public route를 service upstream route로 변환 |
 | Edge response | CORS, preflight, timeout, upstream error normalization |
 
+## Current Platform Runtime
+- `gateway-service` 현재 구현은 `platform-runtime-bom 3.0.1`, `platform-governance-bom 3.0.1`, `platform-security-bom 3.0.1`을 함께 사용한다.
+- 런타임 모듈은 `platform-governance-starter`, `platform-security-starter`, `platform-security-hybrid-web-adapter`, `platform-security-governance-bridge`다.
+- `GatewayApplication`은 `PlatformSecurityHybridWebAdapterAutoConfiguration`만 exclude 한다. platform starter 전체를 끄지 않는다.
+- `GatewayPlatformSecurityConfiguration`은 `PlatformSecurityHybridWebAdapterMarker`, additive `SecurityPolicy`, `HybridSecurityRuntime`, `AuditSink`를 등록한다.
+- 실제 edge 판정 흐름은 `GatewayPlatformSecurityWebFilter`가 auth-service 검증, platform policy 평가, deny 응답, downstream identity projection을 수행하는 현재 구조다.
+
 ## 읽는 순서
 1. [responsibility.md](responsibility.md): Gateway 책임과 경계
 2. [auth-proxy.md](auth-proxy.md): public auth route와 Auth-service upstream mapping

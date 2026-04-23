@@ -6,7 +6,7 @@
 | 항목            | 값                                        |
 |---------------|------------------------------------------|
 | Repo          | https://github.com/jho951/editor-service |
-| Branch        | `dev`                                    |
+| Branch        | `main`                                   |
 | Contract Lock | `contract.lock.yml`                      |
 
 ## 현재 v1
@@ -43,6 +43,14 @@
 - `Block restore`는 현재 v1에 없다.
 - main 확장 목표는 shared operation core와 separated persistence를 동시에 유지하는 것이다.
 - `parentId` / `sortKey` 기반 트리 구조와 rich text payload 규칙을 유지한다.
+
+## Current Platform Runtime
+- `editor-service` 현재 구현은 `platform-runtime-bom 3.0.1`을 두되, `platform-governance/security/resource BOM 3.0.0`과 `platform-security-governance-bridge`, `platform-resource-governance-bridge 2.0.0`을 함께 pin한다.
+- 런타임 모듈은 `platform-governance-starter`, `platform-security-starter`, `platform-security-web-api`, `platform-resource-starter`, `platform-resource-jdbc`이며, local resource backing은 runtime `platform-resource-support-local`이 맡는다.
+- `DocumentsRequestContextConfiguration`은 `platform-security-web-api`의 `SecurityFailureResponseWriter`를 구현해 editor 응답 envelope로 변환한다.
+- `DocumentsResourcePlatformConfiguration`은 shared `operationalProfileResolver`만 제공한다. service가 `platform-resource-core` 구현을 직접 생성하지는 않는다.
+- `platform.resource.storage.root-directory`는 local fallback 저장 위치만 정하고, 운영 storage backing은 `ResourceContentStore` SPI로 교체한다.
+- prod 전용 raw `RateLimiter` bean은 남아 있지만, 현재 build에는 ratelimit bridge starter가 없다.
 
 ## 원칙
 1. v1은 현재 운영 기준이다.

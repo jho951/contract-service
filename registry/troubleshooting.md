@@ -66,7 +66,7 @@
 
 ##### 조치
 1. `./scripts/msa-stack.sh ps`로 컨테이너 이름과 포트를 본다.
-2. current 배포가 dev면 `authz-service`, prod면 `permission-service`로 떠 있는지 확인한다.
+2. current 기준 authz compose service key는 dev/prod 모두 `authz-service`인지 확인한다.
 3. Gateway 환경변수가 실제 authz host를 바라보는지 확인한다.
 4. editor/document upstream은 current 구현 기준 `documents-service:8083`인지 확인한다.
 
@@ -591,21 +591,22 @@
 ## 운영편 3: Editor / Block
 
 ### Editor / Block
-#### 1. README는 main인데 실제 블록 연동은 dev로 안 맞음
+#### 1. README와 실제 블록 연동 기준이 어긋나 보이면 먼저 오래된 branch 가정을 의심한다
 ##### 증상
 - 문서에 적힌 브랜치와 실제 실행 브랜치가 다르다.
 - `editor-service` 동기화가 안 된 것처럼 보인다.
 
 ##### 원인
-- 이 레포는 `editor-service`를 `dev` 기준으로 오케스트레이션한다.
+- 과거 문서나 로컬 복사본이 `editor-service`를 `dev` 기준으로 설명하고 있을 수 있다.
+- 현재 main 기준 SoT는 `editor-service`도 `main`이다.
 
 ##### 확인
 - `registry/deployment-topology.md`
 - `scripts/msa-stack.sh`
 
 ##### 조치
-1. Block 레포가 dev 브랜치인지 확인한다.
-2. docs와 스크립트의 기준을 일치시킨다.
+1. `editor-service`의 현재 기준 브랜치가 `main`인지 먼저 확인한다.
+2. dev 기준 설명이 남아 있으면 stale 문서로 분류하고 갱신한다.
 
 #### 2. editor v1/v2 스키마가 충돌함
 ##### 증상
@@ -682,7 +683,7 @@
 - 문서는 열리는데 블록 수정만 안 되거나 반대 상황이 생긴다.
 
 ##### 원인
-- editor-service dev 브랜치와 editor 문서가 불일치
+- 오래된 editor-service branch 기준 문서와 현재 main 구현이 불일치
 - block API와 editor API가 서로 다른 contract를 참조
 
 ##### 확인
@@ -691,7 +692,7 @@
 - `repositories/editor-service/api.md`
 
 ##### 조치
-1. Block 서버 브랜치와 실행 스크립트를 맞춘다.
+1. Block 서버 브랜치와 실행 스크립트를 현재 main 기준으로 맞춘다.
 2. editor가 참조하는 block contract 버전을 확인한다.
 
 ### Authz/Permission bridge
@@ -780,12 +781,12 @@ git diff --check
 
 #### 1. Gateway local과 auth-service local의 포트 기준이 서로 다르면 host bootRun이 바로 어긋난다
 ##### 증상
-- Gateway local은 auth-service를 `localhost:8081`로 기대하는데 실제 auth-service local은 `8082`에서 뜬다.
-- auth-service local과 user-service local을 동시에 띄우면 둘 다 `8082`를 쓰려 해서 포트 충돌이 난다.
+- 과거 제보에서는 Gateway local은 auth-service를 `localhost:8081`로 기대하는데 실제 auth-service local은 `8082`에서 뜬다고 되어 있었다.
+- 현재 main 기준 값이 바뀌었는지 확인하지 않으면 오래된 로컬 복사본을 현재 장애로 오판할 수 있다.
 
 ##### 원인
 - `gateway-service/.env.local`은 `AUTH_SERVICE_URL=http://localhost:8081`를 사용한다.
-- `auth-service/.env.local`은 현재 `SERVER_PORT=8082`다.
+- 현재 main 기준 `auth-service/.env.local`은 `SERVER_PORT=8081`이다.
 - `user-service/app/src/main/resources/application-dev.yml`의 기본 포트도 `8082`다.
 - 참고로 Gateway local에는 예전처럼 별도 `AUTH_VALIDATE_URL`이 있지 않고, validate 호출도 `AUTH_SERVICE_URL` 기준으로 파생된다.
 
@@ -795,9 +796,9 @@ git diff --check
 - `repositories/user-service/README.md`
 
 ##### 조치
-1. host local 기준을 유지하려면 auth-service local 포트를 `8081`로 맞추는 편이 자연스럽다.
-2. 반대로 auth-service local을 `8082`로 유지할 거면 Gateway local `AUTH_SERVICE_URL`도 같이 바꿔야 한다.
-3. auth-service와 user-service를 동시에 host bootRun 할 때는 `8082` 중복 여부를 먼저 본다.
+1. 현재 main 기준 canonical local 포트는 auth-service `8081`, user-service `8082`다.
+2. 누군가 auth-service local을 `8082`로 보고 있으면 stale `.env.local` 또는 다른 브랜치를 먼저 의심한다.
+3. host bootRun 점검 시에는 Gateway `AUTH_SERVICE_URL`과 auth-service `SERVER_PORT`가 둘 다 `8081`인지부터 본다.
 
 #### 2. `auth-service/.env.local`의 `USER_SERVICE_BASE_URL=8083` 문제 제보는 현재 main 기준으로는 재현되지 않는다
 ##### 증상
@@ -853,7 +854,7 @@ git diff --check
 2. dev도 env override를 허용할지, init.sql 하드코딩을 계약으로 굳힐지 하나로 정한다.
 3. 더 나은 방향은 init.sql 의존을 줄이고 MySQL image env와 마이그레이션 체계로 일원화하는 것이다.
 
-#### 5. auth-service local의 `SSO_GITHUB_CALLBACK_URI=http://localhost:8082/login/oauth2/code/github`는 현재 즉시 장애라기보다 혼란을 만드는 drift다
+#### 5. auth-service local SSO callback은 Gateway ingress 기준 `127.0.0.1:8080`과 일치해야 한다
 ##### 증상
 - local SSO를 볼 때 어떤 문서는 Gateway callback을 말하고, 어떤 env는 auth-service 직결 callback을 말해 혼란이 생긴다.
 - `redirect_uri` mismatch를 디버깅할 때 실제 활성 경로와 env 값이 달라 보인다.
@@ -861,7 +862,7 @@ git diff --check
 ##### 원인
 - 현재 auth-service dev Spring OAuth2 설정은 `redirect-uri: "{baseUrl}/v1/login/oauth2/code/{registrationId}"`를 사용한다.
 - 프런트도 `GET /v1/auth/sso/start`처럼 Gateway 공개 경로를 기준으로 로그인 시작을 만든다.
-- 반면 `auth-service/.env.local`의 `SSO_GITHUB_CALLBACK_URI=http://localhost:8082/login/oauth2/code/github`는 Gateway ingress 모델과 맞지 않는다.
+- 현재 main 기준 `auth-service/.env.local`, `.env.dev`, `.env.example`의 `SSO_GITHUB_CALLBACK_URI`는 `http://127.0.0.1:8080/v1/login/oauth2/code/github`다.
 - 추가로 현재 코드 기준 `SSO_GITHUB_CALLBACK_URI`는 `sso.github.callback-uri`로 로드되지만, active Spring OAuth2 login redirect 계산에는 직접 쓰이지 않는다.
 
 ##### 확인
@@ -872,9 +873,9 @@ git diff --check
 - `repositories/gateway-service/auth-flow.md`
 
 ##### 조치
-1. 이것은 현재 즉시 부팅 장애는 아니다.
-2. 다만 현재 MSA ingress 계약이 Gateway-first라면 local 문서와 예시도 `http://localhost:8080/v1/login/oauth2/code/github` 또는 `http://127.0.0.1:8080/v1/login/oauth2/code/github` 기준으로 맞추는 편이 덜 헷갈린다.
-3. auth-service 직결 모델을 유지할 거면, 그 경로가 “standalone auth-service debug 전용”이라는 점을 문서에 분리해 적는다.
+1. current MSA ingress 계약은 Gateway-first이므로 local 문서와 예시는 `http://127.0.0.1:8080/v1/login/oauth2/code/github`를 canonical 값으로 둔다.
+2. GitHub OAuth App callback URL도 브라우저 테스트 호스트와 동일한 `127.0.0.1:8080`으로 맞춘다.
+3. 누군가 `localhost:8082/login/oauth2/code/github`를 보고 있으면 오래된 env 파일 또는 stale branch 문맥으로 분류한다.
 
 ### 1. Gateway 로컬 JWT 검증과 auth-service 서명키가 다르면 보호 경로가 불안정해진다
 #### 증상
@@ -944,20 +945,22 @@ git diff --check
 2. prod는 EC2 internal hostname target을 유지한다.
 3. gateway/authz service label은 `gateway-service`, `authz-service`로 통일한다.
 
-### 5. Gateway platform-security 모듈 버전은 같은 minor로 맞춘다
+### 5. Gateway platform-security release train을 같이 맞춘다
 #### 증상
 - 빌드는 되거나 안 되거나 환경마다 달라지고, runtime linkage 문제가 날 수 있다.
 
 #### 원인
-- `platform-security-bom` 버전과 직접 pin한 `platform-security-core` 버전이 다르다.
+- `platform-runtime-bom`, `platform-governance-bom`, `platform-security-bom`, `platform-security-hybrid-web-adapter` release train이 서로 다르다.
+- Gateway는 hybrid add-on 기반이라 `platform-security` family와 Spring Boot/Spring Cloud 조합이 어긋나면 reactive filter/runtime 쪽에서 바로 드러난다.
 
 #### 확인
 - `repositories/gateway-service/README.md`
 - `repositories/gateway-service/security.md`
 
 #### 조치
-1. `platform-security-core`는 BOM과 같은 minor 버전으로 맞춘다.
-2. 개별 모듈을 직접 pin할 때는 starter/core/web/bridge family를 같이 검토한다.
+1. Gateway 기준 platform 조합은 `platform-runtime-bom 3.0.1`, `platform-governance-bom 3.0.1`, `platform-security-bom 3.0.1`, `platform-security-hybrid-web-adapter 3.0.1`로 같이 맞춘다.
+2. `GatewayApplication`은 `PlatformSecurityHybridWebAdapterAutoConfiguration`만 exclude 하고, platform starter 전체를 꺼서는 안 된다.
+3. Spring Boot / Spring Cloud 정합성도 함께 본다. 현재 gateway-service root plugin baseline은 `Spring Boot 3.4.10`, `Spring Cloud 2024.0.1`이다.
 
 ### 6. authz-service dev compose에 Redis가 내장돼 있으면 branch drift를 의심한다
 #### 증상
@@ -1171,3 +1174,47 @@ git diff --check
 #### 조치
 1. 먼저 현재 main의 `application.yml`, `application-auth.yml`, `application-prod.yml`에서 `spring.application.name`, issuer, audience, audit service name을 다시 본다.
 2. main이 이미 `editor-service`로 정렬돼 있으면 stale branch 보고로 분류하고, 실제 운영 산출물이 어디서 빌드됐는지부터 확인한다.
+
+### 17. platform 릴리스만 올리고 서비스 구현을 그대로 두면 SOT와 코드가 다시 벌어진다
+#### 증상
+- registry 문서는 여전히 `2.0.5 / 2.0.2 / 2.0.2 / 1.0.3`를 적고 있는데, 서비스 구현 레포는 이미 `3.x` baseline으로 넘어갔다.
+- 문서에는 gateway가 `platform-security-core`, `platform-security-web`를 직접 본다고 적혀 있는데 실제 구현은 `platform-security-hybrid-web-adapter`와 service-owned `HybridSecurityRuntime` 기준이다.
+- editor-service가 아직 `platform-resource-core`를 직접 손댄다고 적혀 있는데 실제 구현은 runtime `platform-resource-support-local`로 local backing을 받는다.
+
+#### 원인
+- platform 버전 갱신과 서비스 구현 정리를 별개 작업으로 처리해 contract만 먼저 바꾸거나, 반대로 구현만 바꾸고 contract를 안 바꾼다.
+- 특히 gateway, authz, editor처럼 sanctioned add-on과 compat 경로가 있는 서비스는 구현 변경 후 문서 드리프트가 빠르게 생긴다.
+
+#### 확인
+- `registry/module-ecosystem.md`
+- `repositories/gateway-service/README.md`
+- `repositories/auth-service/README.md`
+- `repositories/user-service/README.md`
+- `repositories/authz-service/README.md`
+
+#### 조치
+1. 구현 레포 기준 현재 baseline은 `auth/user/authz/gateway = platform-runtime-bom 3.0.1`, `editor = runtime-bom 3.0.1 + governance/security/resource 3.0.0 + bridges 2.0.0`으로 기록한다.
+2. Gateway는 `platform-security-hybrid-web-adapter`와 service-owned `GatewayPlatformSecurityWebFilter`, `HybridSecurityRuntime`을 함께 쓰는 현재 구조로 적는다.
+3. Auth-service는 `platform-security-auth-bridge-starter`, `platform-security-ratelimit-bridge-starter`를, User-service는 `platform-security-ratelimit-bridge-starter`를 소비한다고 적는다.
+4. Authz-service는 `platform-security-legacy-compat`, `platform-security-web-api`, `AuthzInternalRequestAuthorizer` 기반 `HYBRID` internal auth compat를 유지한다고 적는다.
+5. Editor-service는 `platform-resource-support-local` runtime fallback과 `platform-security-web-api` 기반 custom failure writer를 쓰는 현재 구조로 적는다.
+
+### 18. platform-governance 공식 SPI는 `AuditSink`이고, 서비스 도메인 audit는 `AuditLogger` 또는 `AuditSink`를 우선한다
+#### 증상
+- prod 운영 설정에는 `AuditSink` bean이 있는데, 도메인 서비스 코드나 문서는 여전히 `AuditLogRecorder` 직접 주입을 기준으로 설명한다.
+- 서비스 개발자가 `AuditLogRecorder`를 공식 sink SPI로 오해한다.
+
+#### 원인
+- 현재 `AuditLogRecorder`는 mainline starter surface가 아니라 `platform-governance-adapter-auditlog` 쪽 bridge/test/compat adapter다.
+- 이전 구현이 `AuditLogRecorder`를 직접 사용하던 시기의 문서가 남아 있을 수 있다.
+
+#### 확인
+- `registry/module-ecosystem.md`
+- `repositories/auth-service/README.md`
+- `repositories/user-service/README.md`
+- `repositories/authz-service/README.md`
+
+#### 조치
+1. 운영 sink SPI는 `AuditSink`로 본다.
+2. 서비스 도메인 audit 구현은 `AuditLogger` 또는 `AuditSink`를 우선 사용한다.
+3. `AuditLogRecorder`는 `platform-governance-adapter-auditlog`에 있는 bridge/test/compat adapter로 설명하고, 새 서비스 구현의 기본 선택지로 적지 않는다.

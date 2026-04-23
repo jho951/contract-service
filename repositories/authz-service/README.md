@@ -44,6 +44,14 @@
 | `GET` | `/health` | liveness 확인 |
 | `GET` | `/ready` | readiness 확인 |
 
+## Current Platform Runtime
+- `authz-service` 현재 구현은 `platform-runtime-bom 3.0.1`, `platform-governance-bom 3.0.1`, `platform-security-bom 3.0.1`을 함께 사용한다.
+- 런타임 모듈은 `platform-governance-starter`, `platform-security-starter`, `platform-security-legacy-compat`, `platform-security-web-api`, `platform-security-governance-bridge`다.
+- internal auth 기본 모드는 `HYBRID`이고, `platform.security.auth.internal-token-enabled=false`, legacy secret compat는 기본 `enabled` 상태다.
+- `AuthzPlatformSecurityConfig`가 `securityServletFilter`와 failure writer를 연결하고, `AuthzInternalRequestAuthorizer`가 platform session support와 legacy compat adapter를 함께 써서 내부 인증 문맥을 만든다.
+- `InternalPermissionController`는 직접 인증을 수행하지 않고, 이미 구성된 내부 인증 문맥 위에서 permission 판정만 수행한다.
+- prod 전용 raw `RateLimiter` bean은 남아 있지만, 현재 build에는 ratelimit bridge starter가 없다.
+
 ## 계약 원칙
 | 원칙 | 설명 |
 | --- | --- |
