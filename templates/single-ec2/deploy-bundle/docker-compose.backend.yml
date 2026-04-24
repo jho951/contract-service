@@ -146,6 +146,8 @@ services:
     restart: always
     env_file:
       - ./.env.backend
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
     expose:
       - "8084"
     networks:
