@@ -11,6 +11,7 @@
 - `config/`: MySQL 초기화와 설정 파일
 - `scripts/deploy-stack.sh`: 전체 pull/up/down/ps/logs 스크립트
 - `scripts/cleanup-old-clones.sh`: `/opt/services` 아래 예전 clone 디렉토리 제거 스크립트
+- `scripts/bootstrap-ec2.sh`: EC2에서 `/opt/deploy`에 deploy bundle을 설치하는 스크립트
 
 ## 목적
 
@@ -42,6 +43,14 @@
 4. 기존 `/opt/services` clone 디렉터리를 정리하려면 `scripts/cleanup-old-clones.sh`를 실행한다.
 5. `scripts/deploy-stack.sh up`으로 전체 스택을 실행한다.
 6. Nginx 설정은 `../nginx.single-ec2.conf.example`을 적용한다.
+
+EC2에서 바로 bundle을 받으려면:
+
+```bash
+git clone https://github.com/jho951/contract-service.git /tmp/contract-service
+/tmp/contract-service/templates/single-ec2/deploy-bundle/scripts/bootstrap-ec2.sh /opt/deploy
+rm -rf /tmp/contract-service
+```
 
 ## 예시
 
