@@ -74,3 +74,4 @@ curl -i http://localhost:8080/v1/ready
 - `AUTH_JWT_VERIFY_ENABLED=true`인 운영 환경에서는 auth-service 토큰 검증 설정이 Gateway와 일치해야 한다.
 - `authz-service`가 없으면 `ADMIN` 라우트는 fail-closed로 거부될 수 있다.
 - current gateway compose와 contract의 canonical editor upstream 설정은 `EDITOR_SERVICE_URL -> editor-service:8083`이다.
+- single-EC2 deploy bundle에서 `gateway-service`는 downstream service health에 `depends_on`으로 묶지 않는다. gateway 자체는 단독 기동 가능해야 하고, upstream 장애는 runtime `502/504`로 표준화한다.

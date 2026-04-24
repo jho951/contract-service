@@ -51,6 +51,7 @@ CI/CD 규칙:
 - service repo workflow는 `contract.lock.yml`로 fetch한 `.contract/templates/single-ec2/deploy-bundle/`을 먼저 `/opt/deploy`에 동기화한 뒤 같은 경로의 스크립트를 호출한다.
 - workflow에서 전체 `./scripts/deploy-stack.sh up`를 호출하지 않는다.
 - `<service-name>`은 repo 기준 alias도 받는다. 예: `gateway-service`, `auth-service`, `user-service`, `authz-service`, `editor-service`, `redis-service`, `monitoring-service`.
+- `gateway-service`는 downstream health에 묶여 기동이 막히지 않도록 compose `depends_on`으로 다른 app service를 강제하지 않는다. upstream 장애는 runtime `502/504`로 처리한다.
 
 EC2에서 바로 bundle을 받으려면:
 

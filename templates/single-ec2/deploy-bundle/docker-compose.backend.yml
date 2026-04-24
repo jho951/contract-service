@@ -273,12 +273,6 @@ services:
       PLATFORM_SECURITY_IP_GUARD_INTERNAL_RULES_1: ${PLATFORM_SECURITY_IP_GUARD_INTERNAL_RULES_1:-10.0.0.0/8}
       PLATFORM_SECURITY_IP_GUARD_INTERNAL_RULES_2: ${PLATFORM_SECURITY_IP_GUARD_INTERNAL_RULES_2:-172.16.0.0/12}
       PLATFORM_SECURITY_IP_GUARD_INTERNAL_RULES_3: ${PLATFORM_SECURITY_IP_GUARD_INTERNAL_RULES_3:-192.168.0.0/16}
-    depends_on:
-      - auth-service
-      - user-service
-      - authz-service
-      - editor-service
-      - redis-server
     networks:
       service-shared:
         aliases:
