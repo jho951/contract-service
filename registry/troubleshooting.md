@@ -1620,3 +1620,347 @@ git diff --check
 3. 이렇게 바꾸면 gateway 배포가 unrelated MySQL/Grafana/Redis exporter pull 실패에 영향을 덜 받는다.
 4. 근본적으로는 서드파티 운영 이미지를 ECR mirror 또는 사내 registry로 옮기는 것도 검토한다.
 5. 실패 run 이후에도 실제 EC2의 `.env.backend`와 `gateway-service` 컨테이너가 이미 새 이미지로 올라갔을 수 있으니, job 결과만 보지 말고 서버 상태를 같이 확인한다.
+
+### 31. `GET /v1/auth/sso/start`가 `1012 업스트림 호출 실패`로 떨어지면 auth-service 자체보다 auth-service의 prod env를 먼저 본다
+
+#### 증상
+- `https://api.myeditor.n-e.kr/v1/auth/sso/start`가 `502` 또는 `1012`를 반환한다.
+- explain-page나 editor-page에서 로그인 버튼을 누르면 GitHub로 가지 못하고 바로 실패한다.
+- gateway 로그에는 `path=/v1/auth/sso/start upstream=auth`까지만 남는다.
+
+#### 원인
+- auth-service prod env에서 `MYSQL_URL`이 빠졌거나 `allowPublicKeyRetrieval=true`가 없어 MySQL 연결에 실패할 수 있다.
+- `INTERNAL_API_KEY` 같은 내부 호출용 키가 빠지면 auth-service가 prod 기동 중 바로 죽을 수 있다.
+- `SSO_EXPLAIN_CALLBACK_URI`, `SSO_EDITOR_CALLBACK_URI`가 비어 있으면 `/auth/sso/start`가 redirect URL을 만들지 못하고 실패한다.
+
+#### 확인
+- EC2 `/opt/deploy/.env.backend`
+- `docker logs single-ec2-backend-auth-service-1`
+- `curl -i "https://api.myeditor.n-e.kr/v1/auth/sso/start?page=explain&redirect_uri=https://myeditor.n-e.kr/auth/callback"`
+
+#### 조치
+1. `MYSQL_URL=jdbc:mysql://auth-mysql:3306/authdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC`처럼 auth 전용 DB URL을 명시한다.
+2. `INTERNAL_API_KEY`를 auth 내부 호출 시크릿과 같은 값으로 맞춘다.
+3. `SSO_EXPLAIN_CALLBACK_URI=https://myeditor.n-e.kr/auth/callback`, `SSO_EDITOR_CALLBACK_URI=https://editor.myeditor.n-e.kr/auth/callback`를 채운다.
+4. 수정 후 `auth-service`, `gateway-service`를 함께 재기동하고 `/v1/auth/sso/start`가 `302`로 바뀌는지 확인한다.
+
+### 32. GitHub OAuth에서 `The redirect_uri is not associated with this application`가 뜨면 callback URI의 `http/https`와 GitHub App 설정이 어긋난다
+
+#### 증상
+- GitHub 로그인 화면에서 바로 `The redirect_uri is not associated with this application.`가 뜬다.
+- auth start는 `302`로 가지만 GitHub authorize 단계에서 막힌다.
+
+#### 원인
+- auth-service가 GitHub authorize URL을 만들 때 `http://api.myeditor.n-e.kr/...`를 넣고 있는데 GitHub OAuth App에는 `https://api.myeditor.n-e.kr/...`만 등록돼 있을 수 있다.
+- `SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GITHUB_REDIRECT_URI`가 빠지면 프레임워크 기본 계산값으로 `http` callback이 나갈 수 있다.
+
+#### 확인
+- `docker logs single-ec2-backend-auth-service-1`
+- EC2 `/opt/deploy/.env.backend`
+- `curl -k -sS -L --max-redirs 2 -D - -o /dev/null "https://api.myeditor.n-e.kr/v1/auth/sso/start?page=explain&redirect_uri=https%3A%2F%2Fmyeditor.n-e.kr%2Fauth%2Fcallback"`
+- GitHub OAuth App 설정
+
+#### 조치
+1. GitHub OAuth App의 `Authorization callback URL`을 `https://api.myeditor.n-e.kr/v1/login/oauth2/code/github`로 고정한다.
+2. auth-service env에도 `SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GITHUB_REDIRECT_URI=https://api.myeditor.n-e.kr/v1/login/oauth2/code/github`를 넣는다.
+3. `SSO_GITHUB_CALLBACK_URI`도 같은 값으로 맞춘다.
+4. 재기동 후 GitHub authorize URL에 실리는 `redirect_uri`가 `https://api...`인지 다시 확인한다.
+
+### 33. 로그인 후 `oauth2 failed`가 뜨면 callback 이후 user-service가 `dev` 프로필로 뜨는지 먼저 본다
+
+#### 증상
+- GitHub 로그인과 callback은 끝났는데 최종 화면에 `oauth2 failed`가 뜬다.
+- auth-service 로그에는 `user-service 연동 실패`가 남는다.
+
+#### 원인
+- user-service가 운영 배포에서도 `dev` 프로필로 뜨면 platform governance / audit env와 충돌해 기동 직후 죽을 수 있다.
+- 그 상태에서 auth-service의 callback success handler가 사용자 정보를 조회하다가 실패한다.
+
+#### 확인
+- `docker logs single-ec2-backend-user-service-1`
+- `docker exec single-ec2-backend-auth-service-1 curl -i http://user-service:8082/actuator/health`
+- `/opt/deploy/docker-compose.backend.yml`의 `user-service.environment`
+
+#### 조치
+1. deploy bundle의 `user-service`에 `SPRING_PROFILES_ACTIVE: prod`를 명시한다.
+2. `user-service`, `auth-service`, `gateway-service`를 순서대로 재기동한다.
+3. auth-service 컨테이너 안에서 `http://user-service:8082/actuator/health`가 `200 UP`인지 본다.
+4. 그 다음 OAuth start -> callback 흐름을 다시 검증한다.
+
+### 34. explain-page 로그인 완료 후 editor로 안 넘어가면 callback host와 성공 후 redirect host를 분리해서 본다
+
+#### 증상
+- explain-page에서 로그인은 되는데 계속 `https://myeditor.n-e.kr`에만 머문다.
+- 시작하기 버튼을 눌러도 editor가 아니라 explain 쪽 로그인만 반복된다.
+
+#### 원인
+- explain-page 빌드 시점 env에 `NEXT_PUBLIC_START_FRONTEND_URL`, `NEXT_PUBLIC_SSO_CONSUMER_CALLBACK_URL`가 원하는 editor 도메인으로 안 들어갔을 수 있다.
+- explain-page가 callback 자체를 처리하면 성공 후 same-origin redirect로 머무를 수 있다.
+- editor-page는 별도 `/auth/callback`과 post-auth redirect 로직을 이미 가지고 있으므로, 실제 callback을 editor가 처리하는 흐름이 더 단순할 수 있다.
+
+#### 확인
+- `page-explain/.github/workflows/cd.yml`
+- `page-explain/docker/Dockerfile`
+- `page-explain/.env.production.example`
+- 라이브 explain-page 컨테이너 내부 `.next/required-server-files.json`
+
+#### 조치
+1. explain-page build env의 `NEXT_PUBLIC_START_FRONTEND_URL`을 `https://editor.myeditor.n-e.kr`로 맞춘다.
+2. explain-page build env의 `NEXT_PUBLIC_SSO_CONSUMER_CALLBACK_URL`을 `https://editor.myeditor.n-e.kr/auth/callback`로 맞춘다.
+3. editor-page의 `/auth/callback`이 ticket exchange와 최종 이동을 맡도록 두고, explain-page는 로그인 시작만 담당하게 정리한다.
+4. explain-page 새 이미지를 다시 빌드/배포한 뒤 라이브 컨테이너 안에 editor callback URL이 bake 되었는지 확인한다.
+
+### 35. `/v1/documents`가 `502`면 gateway 라우팅보다 editor-service의 datasource 오염을 먼저 본다
+
+#### 증상
+- editor-page에서 문서 목록/생성이 `502 Bad Gateway`로 떨어진다.
+- gateway 응답 바디는 `code=1012`, `message=업스트림 호출에 실패한 경우`다.
+- gateway 로그에는 `path=/v1/documents upstream=editor`까지만 찍힌다.
+
+#### 원인
+- editor-service 자체는 `DB_URL_PROD`를 쓰도록 설계돼 있는데, 배포 번들의 공통 `.env.backend`에서 흘러온 `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`가 먼저 적용될 수 있다.
+- 그 값이 user-service용 `jdbc:mysql://mysql:3306/user_service...`를 가리키면 editor-service가 자기 전용 MySQL(`editor-mysql`) 대신 잘못된 DB로 붙으려다 부팅에 실패한다.
+- 결과적으로 gateway는 살아 있지만 editor upstream이 재기동 루프에 들어가며 `502`가 난다.
+
+#### 확인
+- `docker logs editor-service-prod`
+- `docker inspect editor-service-prod --format '{{json .Config.Env}}'`
+- `docker compose --env-file /opt/deploy/.env.backend -f /opt/deploy/docker-compose.backend.yml config`
+- `docker network inspect single-ec2-backend_documents-private`
+
+#### 조치
+1. deploy bundle `editor-service.environment`에 아래 값을 명시적으로 override 한다.
+   - `SPRING_DATASOURCE_URL=${DB_URL_PROD:-jdbc:mysql://editor-mysql:3306/${DB_NAME_PROD:-documentsdb}...}`
+   - `SPRING_DATASOURCE_USERNAME=${DB_USERNAME_PROD:-documents}`
+   - `SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD_PROD:?DB_PASSWORD_PROD is required}`
+2. 동시에 `DB_USERNAME_PROD`, `DB_PASSWORD_PROD`도 `editor-service` environment에 명시해 prod 키가 빠지지 않게 한다.
+3. 수정 후 `editor-service`, `gateway-service`를 재기동한다.
+4. 재검증 시 `/v1/documents`가 더 이상 `502`가 아니어야 한다. 인증 없이 직접 치면 정상적으로는 `401`이 나와야 upstream 장애가 해소된 것이다.
+
+### 36. Route53에 레코드를 넣었는데도 HTTPS 발급이 안 되면 실제 등록 NS가 Route53인지부터 본다
+
+#### 증상
+- Route53 Hosted Zone에는 `myeditor.n-e.kr`, `api.myeditor.n-e.kr`, `editor.myeditor.n-e.kr` A 레코드가 있는데 `certbot`은 여전히 DNS 해석 실패를 낸다.
+- `dig NS myeditor.n-e.kr` 결과가 Route53 NS가 아니라 다른 DNS 사업자를 가리킨다.
+
+#### 원인
+- Hosted Zone에 레코드를 넣는 것과 실제 공용 DNS 위임은 별개다.
+- 도메인 등록업체의 NS가 Route53 NS로 바뀌지 않으면 외부 클라이언트와 Let’s Encrypt는 Route53 레코드를 보지 않는다.
+
+#### 확인
+- `dig NS myeditor.n-e.kr`
+- Route53 Hosted Zone NS
+- 도메인 등록업체의 네임서버 설정
+
+#### 조치
+1. 등록업체 NS를 Route53 Hosted Zone NS로 바꾸거나, 현재 사용 중인 외부 DNS에 동일한 A 레코드를 넣는다.
+2. 세 호스트가 모두 같은 EC2/EIP를 가리키는지 확인한다.
+3. DNS 전파 후 `sudo certbot --nginx -d myeditor.n-e.kr -d editor.myeditor.n-e.kr -d api.myeditor.n-e.kr`를 실행한다.
+4. 발급 후 `curl -I https://myeditor.n-e.kr`, `curl -I https://editor.myeditor.n-e.kr`, `curl -I https://api.myeditor.n-e.kr/actuator/health`로 검증한다.
+
+### 37. EC2 SSH가 안 붙을 때는 키보다 먼저 `Public IPv4`와 `Elastic IP`가 실제로 같은 인스턴스를 가리키는지 본다
+
+#### 증상
+- `ssh -v` 로그가 `Connecting to ... port 22`에서 오래 멈추거나 잘못된 IP에 붙는다.
+- 같은 인스턴스인데 어떤 때는 `52.x.x.x`, 어떤 때는 `16.x.x.x`를 쓰고 있어 혼란이 생긴다.
+- `ping`이 안 되거나 `Connection refused`가 뜬다.
+
+#### 원인
+- SSH config가 현재 인스턴스의 실제 접근 주소가 아니라 예전 `Public IPv4`를 보고 있을 수 있다.
+- `Elastic IP`를 만들었어도 실제 인스턴스에 associate되지 않으면 접속 대상이 달라진다.
+- `ping`은 막혀 있어도 SSH는 정상일 수 있어 네트워크 판단을 헷갈리게 만든다.
+
+#### 확인
+- AWS EC2 콘솔의 `Public IPv4 address`
+- AWS EC2 콘솔의 `Elastic IP association`
+- 로컬 `~/.ssh/config`
+- `ssh -v ec2-user@<ip>`
+
+#### 조치
+1. 현재 인스턴스의 실제 접근 주소를 하나로 정한다. 보통 운영용이면 `Elastic IP`를 기준으로 삼는다.
+2. `~/.ssh/config`의 `HostName`을 그 IP로 맞춘다.
+3. `Elastic IP`를 쓸 경우 해당 EIP가 현재 인스턴스에 associate되어 있는지 확인한다.
+4. `ping` 대신 `ssh` 성공 여부로 최종 판단한다.
+
+### 38. 서비스는 떠 있는데 브라우저에서 안 열리면 `127.0.0.1` bind와 Nginx/보안그룹 구조를 같이 봐야 한다
+
+#### 증상
+- `docker ps`에는 `127.0.0.1:8080`, `127.0.0.1:8081`, `127.0.0.1:3000`으로 떠 있는데 외부 브라우저에서는 안 열린다.
+- EC2 안에서 `curl http://127.0.0.1:8080`은 되는데 도메인 접속은 실패한다.
+
+#### 원인
+- 단일 EC2 운영에서는 앱 포트를 외부에 직접 열지 않고 `127.0.0.1` bind 후 Nginx가 `80/443`에서 받아야 한다.
+- 보안그룹이 `8080`만 열려 있고 `80/443`가 안 열려 있으면 도메인 공개가 안 된다.
+
+#### 확인
+- `docker ps`
+- `curl -I http://127.0.0.1:8080`
+- `sudo nginx -t`
+- AWS Security Group inbound
+
+#### 조치
+1. 앱 포트는 계속 `127.0.0.1` bind로 두고, 외부 공개는 Nginx가 맡게 한다.
+2. 보안그룹은 `22`, `80`, `443`만 열고 `8080` 직접 공개는 제거한다.
+3. Nginx에서 `myeditor.n-e.kr -> 3000`, `editor.myeditor.n-e.kr -> 8081`, `api.myeditor.n-e.kr -> 8080`으로 reverse proxy를 잡는다.
+
+### 39. Amazon Linux 2023에서 `docker compose`가 없으면 배포 스크립트가 바로 깨진다
+
+#### 증상
+- `./scripts/deploy-stack.sh up` 직후 `docker: 'compose' is not a docker command`가 뜬다.
+- `docker --version`은 되는데 `docker compose version`이 안 된다.
+
+#### 원인
+- Docker Engine만 설치되고 Compose plugin이 빠져 있을 수 있다.
+- 예전 standalone `docker-compose`와 현재 `docker compose`를 혼용하면 스크립트 기준이 어긋난다.
+
+#### 확인
+- `docker --version`
+- `docker compose version`
+- `which docker-compose`
+
+#### 조치
+1. 우선 `docker compose` plugin 설치를 기준으로 맞춘다.
+2. 배포 스크립트는 `docker compose` 기준으로 유지하고, 필요한 경우 EC2에 Compose plugin을 수동 설치한다.
+3. 단기 우회로 standalone을 쓰더라도 운영 번들 기준은 하나로 통일한다.
+
+### 40. ECR에서 `repository not found` 또는 `manifest unknown`이 뜨면 repo, 계정 ID, 태그 placeholder를 순서대로 본다
+
+#### 증상
+- `repository ... not found`
+- `.dkr.ecr.ap-northeast-2.amazonaws.com/prod-redis-service not found`
+- `:replace-with-git-sha not found: manifest unknown`
+
+#### 원인
+- `<AWS_ACCOUNT_ID>`가 비어 있거나 잘못 들어간 이미지 URI
+- ECR repository 자체 미생성
+- `.env.backend`, `.env.frontend`에 `replace-with-git-sha` placeholder가 그대로 남아 있음
+- `latest`는 기대하지만 실제 workflow는 SHA 태그만 올렸을 수 있음
+
+#### 확인
+- `aws sts get-caller-identity`
+- `aws ecr describe-repositories --repository-names <repo>`
+- `aws ecr list-images --repository-name <repo>`
+- `/opt/deploy/.env.backend`, `/opt/deploy/.env.frontend`
+
+#### 조치
+1. 이미지 URI 앞부분의 `AWS_ACCOUNT_ID`를 실제 12자리 계정 ID로 맞춘다.
+2. ECR repository가 없으면 먼저 생성한다.
+3. placeholder 태그는 실제 SHA 또는 `latest`로 바꾼다.
+4. `latest`를 쓸 거면 GitHub Actions가 `main/master`에서 `latest`도 push하는지 확인한다.
+
+### 41. GitHub Actions OIDC Role은 trust policy만으로 끝나지 않고 ECR permission policy가 따로 있어야 한다
+
+#### 증상
+- GitHub Actions에서 `aws-actions/amazon-ecr-login@v2` 단계가 실패한다.
+- `is not authorized to perform: ecr:GetAuthorizationToken on resource: *`가 찍힌다.
+
+#### 원인
+- IAM Role trust policy로 GitHub OIDC를 허용했더라도, 실제 ECR 권한 policy가 없으면 Assume 후 아무 작업도 못 한다.
+
+#### 확인
+- IAM Role의 `Trust policy`
+- IAM Role의 `Permissions` / `Inline policy`
+- GitHub Actions 에러 로그
+
+#### 조치
+1. trust policy는 GitHub repo/sub 제한용으로 유지한다.
+2. 별도로 inline policy 또는 managed policy로 최소 ECR 권한을 붙인다.
+3. 최소한 `ecr:GetAuthorizationToken`, `ecr:CreateRepository`, `ecr:DescribeRepositories`, `ecr:PutImage`, `ecr:UploadLayerPart` 등 push에 필요한 권한을 포함시킨다.
+
+### 42. GitHub Actions SSH deploy가 `ssh-add -`에서 멈추면 `DEPLOY_SSH_KEY`에 넣은 키가 passphrase 있거나 공개키일 가능성이 높다
+
+#### 증상
+- `webfactory/ssh-agent@v0.9.0` 단계에서 `Enter passphrase for (stdin):`가 뜬다.
+- 또는 SSH 배포는 시작도 못 하고 key parse 오류가 난다.
+
+#### 원인
+- `DEPLOY_SSH_KEY`에 passphrase 있는 개인키를 넣었거나, 아예 공개키를 넣었을 수 있다.
+- CI에서는 비대화형이라 passphrase 입력이 불가능하다.
+
+#### 확인
+- GitHub secret `DEPLOY_SSH_KEY`
+- 로컬 키 파일 내용이 `-----BEGIN OPENSSH PRIVATE KEY-----`로 시작하는지
+- EC2 `~/.ssh/authorized_keys`
+
+#### 조치
+1. CI 전용으로 passphrase 없는 개인키를 새로 만든다.
+2. GitHub secret `DEPLOY_SSH_KEY`에는 개인키 전체 본문을 넣는다.
+3. EC2 `~/.ssh/authorized_keys`에는 대응하는 공개키를 새 줄로 추가한다.
+4. 로컬에서 새 개인키로 `ssh -i <key> ec2-user@<host>`가 되는지 먼저 확인한다.
+
+### 43. GitHub Actions SSH deploy는 `22/tcp -> My IP` 상태에선 실패할 수 있다
+
+#### 증상
+- `ssh-keyscan` 또는 `Deploy to EC2` 단계가 바로 실패한다.
+- 로컬에서는 SSH가 되는데 GitHub Actions만 EC2에 못 붙는다.
+
+#### 원인
+- 보안그룹의 `22/tcp`를 내 공인 IP로만 제한해 두면 GitHub Actions runner IP는 막힌다.
+- 자동배포를 SSH로 구현한 상태에선 runner가 직접 EC2에 들어와야 한다.
+
+#### 확인
+- GitHub Actions 로그의 `ssh-keyscan` / `ssh` 단계
+- AWS Security Group inbound rule
+
+#### 조치
+1. 자동배포를 유지할 거면 일시적으로 `22/tcp`를 외부에서 접근 가능하게 두거나, GitHub runner IP 허용 구조를 따로 만든다.
+2. 더 안전하게 가려면 SSH 대신 SSM/CodeDeploy로 바꾼다.
+3. 자동배포 검증이 끝나면 `22`는 다시 최소 범위로 줄인다.
+
+### 44. `contract-service`에서 deploy bundle을 한 번 복사한 뒤엔 repo 수정이 EC2 `/opt/deploy`에 자동 반영되지 않는다
+
+#### 증상
+- `contract-service`에는 분명 fix가 push됐는데 EC2는 여전히 이전 compose/init.sql/env 예시로 동작한다.
+- 같은 장애를 고쳤는데 EC2 재배포 후 또 재현된다.
+
+#### 원인
+- `/opt/deploy`는 bootstrap 시점의 복사본이라 원격 Git working tree가 아니다.
+- repo를 고쳐도 EC2 파일을 다시 덮지 않으면 live bundle은 그대로 남아 있다.
+
+#### 확인
+- `git log`의 최신 커밋
+- EC2 `/opt/deploy/*` 파일 내용
+- `contract-service/templates/single-ec2/deploy-bundle/*` 원본 내용
+
+#### 조치
+1. fix 후에는 필요한 파일을 EC2 `/opt/deploy`로 다시 복사한다.
+2. 예시는 `docker-compose.backend.yml`, `scripts/deploy-stack.sh`, `config/auth-mysql/init.sql`처럼 실제 장애 지점 파일만 덮어써도 된다.
+3. 복사 뒤 관련 서비스만 재기동해서 검증한다.
+
+### 45. `auth-mysql`이 unhealthy면 init SQL이 MySQL 8 컨테이너에서 허용되지 않는 global 변수 설정을 건드리는지 본다
+
+#### 증상
+- `single-ec2-backend-auth-mysql-1`가 unhealthy로 떠서 전체 stack deploy가 멈춘다.
+- 로그에 `/docker-entrypoint-initdb.d/init.sql` 실행 중 에러가 찍힌다.
+
+#### 원인
+- init SQL에서 `SET GLOBAL slow_query_log_file = '/var/log/mysql/slow.log'` 같은 값을 넣으면 MySQL 8 컨테이너 환경에서 거부될 수 있다.
+- DB는 어느 정도 올라오지만 init 단계에서 실패해 health/재기동 흐름을 망친다.
+
+#### 확인
+- `docker logs single-ec2-backend-auth-mysql-1`
+- `/opt/deploy/config/auth-mysql/init.sql`
+
+#### 조치
+1. 컨테이너 환경에서 허용되지 않는 `SET GLOBAL ... slow_query_log_file` 같은 줄을 제거하거나 다른 방식으로 옮긴다.
+2. 수정 후 auth-mysql만 다시 올려 health를 확인한다.
+3. 동일 fix를 deploy bundle 원본에도 반영한다.
+
+### 46. `main`으로 push했는데도 `dev-*` 이미지가 만들어지면 CD의 deploy environment 결정 규칙부터 본다
+
+#### 증상
+- `main` push 후에도 `prod-*`가 아니라 `dev-*` ECR repo로 이미지가 올라간다.
+- `/opt/deploy`는 `prod-*` 이미지를 참조하고 있는데 workflow는 `dev-*` 이미지를 만들고 있어 pull이 깨진다.
+
+#### 원인
+- CD workflow가 `main/master -> prod`, `dev -> dev`, `tag -> prod` 규칙으로 정리되지 않았거나, 기존 기본값이 `dev`로 남아 있을 수 있다.
+
+#### 확인
+- 각 서비스 `.github/workflows/cd.yml`
+- workflow의 `deploy-gate` / target environment 계산 단계
+- ECR에 실제 올라간 repository/tag
+
+#### 조치
+1. `main/master`는 `prod`, `dev` branch는 `dev`, `tag`는 `prod`로 분기 규칙을 고정한다.
+2. `prod` bundle이 참조하는 repo 이름과 workflow가 push하는 repo prefix를 맞춘다.
+3. 잘못 올라간 이미지 때문에 생긴 runtime mismatch는 새 `prod` 이미지 배포 후 다시 확인한다.
