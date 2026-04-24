@@ -12,6 +12,7 @@
 | [readme-contract-source-frontend.md](readme-contract-source-frontend.md) | 프론트엔드 README에 넣을 contract source 섹션 |
 | [github-actions-contract-check.yml](github-actions-contract-check.yml) | 공통 contract check, test/build, image, deploy gate workflow |
 | [single-ec2/README.md](single-ec2/README.md) | 단일 EC2 `m7i-flex.large` bootstrap, compose override, `.env.prod` 템플릿 |
+| [single-ec2/deploy-bundle/README.md](single-ec2/deploy-bundle/README.md) | 앱 레포 clone 없이 ECR image만으로 단일 EC2를 올리는 deploy bundle |
 | [single-ec2/nginx.single-ec2.conf.example](single-ec2/nginx.single-ec2.conf.example) | 단일 EC2에서 `api`, `editor`, `explain`, `grafana`를 도메인별로 프록시하는 Nginx 예시 |
 
 ## Notes

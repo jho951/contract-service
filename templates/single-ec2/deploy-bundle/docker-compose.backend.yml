@@ -1,0 +1,312 @@
+name: single-ec2-backend
+
+services:
+  redis-server:
+    image: ${REDIS_IMAGE:?REDIS_IMAGE is required}
+    pull_policy: always
+    container_name: ${REDIS_CONTAINER_NAME:-central-redis}
+    restart: unless-stopped
+    environment:
+      REDIS_CONFIG_FILE: ${REDIS_CONFIG_FILE:-/usr/local/etc/redis/prod/redis.conf}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_MAXMEMORY: ${REDIS_MAXMEMORY:-256mb}
+      REDIS_MAXMEMORY_POLICY: ${REDIS_MAXMEMORY_POLICY:-allkeys-lru}
+    volumes:
+      - redis-data:/data
+      - redis-logs:/var/log/redis
+    networks:
+      service-shared:
+        aliases:
+          - redis
+          - central-redis
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - if [ -n "$${REDIS_PASSWORD}" ]; then redis-cli -a "$${REDIS_PASSWORD}" ping | grep PONG; else redis-cli ping | grep PONG; fi
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis-exporter:
+    image: ${REDIS_EXPORTER_IMAGE:-oliver006/redis_exporter:v1.67.0}
+    pull_policy: always
+    container_name: ${REDIS_EXPORTER_CONTAINER_NAME:-central-redis-exporter}
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: redis://redis-server:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    depends_on:
+      redis-server:
+        condition: service_healthy
+    networks:
+      service-shared:
+        aliases:
+          - redis-exporter
+          - central-redis-exporter
+          - central-redis-exporter-dev
+
+  auth-mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DB:-authdb}
+      MYSQL_USER: ${MYSQL_USER:-authuser}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
+    volumes:
+      - auth-mysql-data:/var/lib/mysql
+      - ./config/auth-mysql/my.cnf:/etc/mysql/my.cnf:ro
+      - ./config/auth-mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./config/auth-mysql/auth-schema.sql:/schema/auth-schema.sql:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - mysqladmin ping -h 127.0.0.1 -u root -p"$$MYSQL_ROOT_PASSWORD"
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - auth-private
+
+  auth-service:
+    image: ${AUTH_SERVICE_IMAGE:?AUTH_SERVICE_IMAGE is required}
+    pull_policy: always
+    restart: unless-stopped
+    env_file:
+      - ./.env.backend
+    command: ["--spring.profiles.active=prod"]
+    depends_on:
+      auth-mysql:
+        condition: service_healthy
+    expose:
+      - "8081"
+    networks:
+      service-shared:
+        aliases:
+          - auth-service
+      auth-private: {}
+
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-user_service}
+      MYSQL_USER: ${MYSQL_USER_USER_SERVICE:-user_service}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD_USER_SERVICE:?MYSQL_PASSWORD_USER_SERVICE is required}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD_USER_SERVICE:?MYSQL_ROOT_PASSWORD_USER_SERVICE is required}
+      TZ: ${TZ:-Asia/Seoul}
+    volumes:
+      - user-mysql-data:/var/lib/mysql
+      - ./config/user-mysql/my.cnf:/etc/mysql/conf.d/my.cnf:ro
+    healthcheck:
+      test:
+        - CMD
+        - mysqladmin
+        - ping
+        - -h
+        - 127.0.0.1
+        - -uroot
+        - -p${MYSQL_ROOT_PASSWORD_USER_SERVICE}
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      user-private:
+        aliases:
+          - mysql
+
+  user-service:
+    image: ${USER_SERVICE_IMAGE:?USER_SERVICE_IMAGE is required}
+    pull_policy: always
+    restart: unless-stopped
+    env_file:
+      - ./.env.backend
+    depends_on:
+      mysql:
+        condition: service_healthy
+    expose:
+      - "8082"
+    networks:
+      user-private: {}
+      service-shared:
+        aliases:
+          - user-service
+
+  authz-service:
+    image: ${AUTHZ_SERVICE_IMAGE:?AUTHZ_SERVICE_IMAGE is required}
+    pull_policy: always
+    restart: always
+    env_file:
+      - ./.env.backend
+    expose:
+      - "8084"
+    networks:
+      service-shared:
+        aliases:
+          - authz-service
+
+  editor-mysql:
+    image: mysql:8.0
+    container_name: documents-mysql-prod
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD_PROD:?MYSQL_ROOT_PASSWORD_PROD is required}
+      MYSQL_DATABASE: ${DB_NAME_PROD:-documentsdb}
+      MYSQL_USER: ${DB_USERNAME_PROD:-documents}
+      MYSQL_PASSWORD: ${DB_PASSWORD_PROD:?DB_PASSWORD_PROD is required}
+      TZ: ${TZ:-Asia/Seoul}
+    volumes:
+      - editor-mysql-data:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-p${MYSQL_ROOT_PASSWORD_PROD}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - documents-private
+
+  editor-service:
+    image: ${EDITOR_SERVICE_IMAGE:?EDITOR_SERVICE_IMAGE is required}
+    pull_policy: always
+    container_name: editor-service-prod
+    restart: always
+    env_file:
+      - ./.env.backend
+    depends_on:
+      editor-mysql:
+        condition: service_healthy
+    expose:
+      - "8083"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SERVER_PORT: ${SERVER_PORT_EDITOR:-8083}
+      DB_URL_PROD: ${DB_URL_PROD:-jdbc:mysql://editor-mysql:3306/${DB_NAME_PROD:-documentsdb}?useSSL=false&allowPublicKeyRetrieval=true&useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&serverTimezone=Asia/Seoul}
+    networks:
+      documents-private: {}
+      service-shared:
+        aliases:
+          - documents-service
+          - editor-service
+    volumes:
+      - editor-resource-data:/var/lib/documents/resources
+
+  gateway-service:
+    image: ${GATEWAY_IMAGE:?GATEWAY_IMAGE is required}
+    pull_policy: always
+    restart: always
+    env_file:
+      - ./.env.backend
+    ports:
+      - "${GATEWAY_HOST_BIND:-127.0.0.1}:${GATEWAY_HOST_PORT:-8080}:8080"
+    environment:
+      APP_ENV: prod
+      APP_ENV_FILE: /app/.env.prod
+      APP_MODULE: app
+    depends_on:
+      - auth-service
+      - user-service
+      - authz-service
+      - editor-service
+      - redis-server
+    networks:
+      service-shared:
+        aliases:
+          - gateway-service
+          - gateway
+
+  prometheus:
+    image: ${PROMETHEUS_IMAGE:?PROMETHEUS_IMAGE is required}
+    pull_policy: always
+    container_name: monitoring-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.console.libraries=/usr/share/prometheus/console_libraries
+      - --web.console.templates=/usr/share/prometheus/consoles
+    ports:
+      - "${PROMETHEUS_BIND_HOST:-127.0.0.1}:${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - prometheus-data:/prometheus
+    networks:
+      - service-shared
+      - monitoring-private
+    restart: unless-stopped
+
+  grafana:
+    image: ${GRAFANA_IMAGE:?GRAFANA_IMAGE is required}
+    pull_policy: always
+    container_name: monitoring-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "${GRAFANA_BIND_HOST:-127.0.0.1}:${GRAFANA_PORT:-3005}:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - loki
+    networks:
+      - monitoring-private
+    restart: unless-stopped
+
+  loki:
+    image: ${LOKI_IMAGE:?LOKI_IMAGE is required}
+    pull_policy: always
+    container_name: monitoring-loki
+    command:
+      - -config.file=/etc/loki/loki-config.yml
+    ports:
+      - "${LOKI_BIND_HOST:-127.0.0.1}:${LOKI_PORT:-3100}:3100"
+    volumes:
+      - loki-data:/loki
+    networks:
+      - monitoring-private
+    restart: unless-stopped
+
+  promtail:
+    image: ${PROMTAIL_IMAGE:?PROMTAIL_IMAGE is required}
+    pull_policy: always
+    container_name: monitoring-promtail
+    command:
+      - -config.file=/etc/promtail/promtail-config.yml
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - promtail-positions:/tmp
+    depends_on:
+      - loki
+    networks:
+      - monitoring-private
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+  redis-logs:
+  auth-mysql-data:
+  user-mysql-data:
+  editor-mysql-data:
+  editor-resource-data:
+  prometheus-data:
+  grafana-data:
+  loki-data:
+  promtail-positions:
+
+networks:
+  service-shared:
+    external: true
+    name: ${SERVICE_SHARED_NETWORK:-service-backbone-shared}
+  auth-private:
+    driver: bridge
+    internal: true
+  user-private:
+    driver: bridge
+    internal: true
+  documents-private:
+    driver: bridge
+    internal: true
+  monitoring-private:
+    driver: bridge

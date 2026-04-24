@@ -1,0 +1,24 @@
+name: single-ec2-frontend
+
+services:
+  editor-page:
+    image: ${EDITOR_PAGE_IMAGE:?EDITOR_PAGE_IMAGE is required}
+    pull_policy: always
+    container_name: editor-page-prod
+    restart: unless-stopped
+    ports:
+      - "${EDITOR_PAGE_HOST_BIND:-127.0.0.1}:${EDITOR_PAGE_PROD_PORT:-8081}:80"
+
+  explain-page:
+    image: ${EXPLAIN_PAGE_IMAGE:?EXPLAIN_PAGE_IMAGE is required}
+    pull_policy: always
+    container_name: explain-page-prod
+    restart: unless-stopped
+    env_file:
+      - ./.env.frontend
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+    ports:
+      - "${EXPLAIN_PAGE_HOST_BIND:-127.0.0.1}:${EXPLAIN_PAGE_PROD_PORT:-3000}:3000"

@@ -93,6 +93,7 @@ repository 이름 규칙:
 - `docker login` 또는 `aws ecr get-login-password` 기반 ECR 인증 준비
 - 실제 bootstrap 템플릿은 [../templates/single-ec2/user_data.sh.tftpl](../templates/single-ec2/user_data.sh.tftpl)을 기준으로 한다.
 - 7개 서비스 자동 배포까지 포함한 완성형은 [../templates/single-ec2/user_data.full-stack.sh.tftpl](../templates/single-ec2/user_data.full-stack.sh.tftpl)을 기준으로 한다.
+- 앱 레포 clone 없이 바로 올리려면 [../templates/single-ec2/deploy-bundle/README.md](../templates/single-ec2/deploy-bundle/README.md)의 deploy bundle을 우선 사용한다.
 
 권장 디렉터리:
 
