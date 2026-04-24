@@ -5,6 +5,15 @@
 - 애플리케이션 실행은 `./gradlew bootRun`이다.
 - 기본 포트는 `8084`다.
 - `GET /health` 와 `GET /ready` 는 운영 확인용이다.
+- `GET /actuator/health` 와 `GET /actuator/prometheus`는 monitoring/operator 확인용이다.
+
+## Monitoring Baseline
+| Signal | 기준 |
+| --- | --- |
+| liveness | `/health` |
+| readiness | `/ready` |
+| metrics | `/actuator/prometheus` |
+| focus | admin verify latency, allow/deny traffic, Redis fallback, DB/Redis readiness |
 
 ## Operational Flows
 - 권한 판정 성공은 `200`, 거부는 `403`, 입력 오류는 `400`이다.
@@ -22,9 +31,11 @@
 - `./gradlew bootRun`
 - `curl -i http://localhost:8084/health`
 - `curl -i http://localhost:8084/ready`
+- `curl -i http://localhost:8084/actuator/health`
 - `curl -i -X POST http://localhost:8084/permissions/internal/admin/verify -H 'Authorization: Bearer <internal-service-jwt>' -H 'X-User-Id: admin-seed' -H 'X-Original-Method: GET' -H 'X-Original-Path: /v1/admin/blocks' -H 'X-Request-Id: debug-req-1' -H 'X-Correlation-Id: debug-corr-1'`
 
 ## Notes
 - 내부 엔드포인트는 Gateway 또는 내부 네트워크에서만 호출한다.
 - 관리자 경로는 `/admin/**`와 `/v1/admin/**`를 모두 고려한다.
 - `X-User-Role`은 운영 검증 입력으로 사용하지 않는다. role/permission은 Authz가 `X-User-Id` 기준으로 조회한다.
+- 모니터링 baseline은 [../../shared/monitoring.md](../../shared/monitoring.md)를 따른다.

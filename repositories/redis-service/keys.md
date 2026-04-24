@@ -4,7 +4,7 @@
 | Prefix | Owner | Purpose |
 | --- | --- | --- |
 | `gateway:session:` | Gateway | Bearer/session auth 성공 결과 캐시 |
-| `gateway:admin-permission:` | Gateway | 관리자 경로 허용/거부 캐시 |
+| `gateway:admin-authz:` | Gateway | 관리자 경로 허용/거부 캐시 |
 | `permission:*` | authz-service | 권한/역할/정책 보조 캐시 |
 
 ## Key Rules
@@ -19,7 +19,7 @@
 | Key | Value | TTL |
 | --- | --- | --- |
 | `gateway:session:<hash>` | `AuthResult` 인코딩 | `GATEWAY_SESSION_CACHE_TTL_SECONDS` |
-| `gateway:admin-permission:<hash>` | `ALLOW` / `DENY` | `GATEWAY_PERMISSION_CACHE_TTL_SECONDS` |
+| `gateway:admin-authz:<hash>` | `ALLOW` / `DENY` | `GATEWAY_AUTHZ_CACHE_TTL_SECONDS` |
 
 ## Authz Keys
 | Key | Value | TTL |

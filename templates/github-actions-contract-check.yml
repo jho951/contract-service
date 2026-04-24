@@ -21,7 +21,8 @@ on:
 
 permissions:
   contents: read
-  packages: write
+  packages: read
+  id-token: write
 
 env:
   CONTRACT_REPO: https://github.com/jho951/service-contract
@@ -32,7 +33,8 @@ env:
   NODE_VERSION: "20"
   TEST_COMMAND: ./gradlew clean test
   BUILD_COMMAND: ./gradlew bootJar
-  DOCKER_IMAGE: ghcr.io/${{ github.repository }}
+  AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
+  DOCKER_IMAGE_REPOSITORY: ${{ vars.ECR_REPOSITORY_NAME || format('{0}-auth-service', github.ref_type == 'tag' && 'prod' || 'dev') }}
   HEALTH_URL: http://127.0.0.1:8081/health
   READY_URL: http://127.0.0.1:8081/ready
 
@@ -128,17 +130,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Login to GHCR
-        uses: docker/login-action@v3
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build image
+        env:
+          DOCKER_IMAGE: ${{ steps.login-ecr.outputs.registry }}/${{ env.DOCKER_IMAGE_REPOSITORY }}
         run: docker build -t "${DOCKER_IMAGE}:${GITHUB_SHA}" .
 
       - name: Push image
+        env:
+          DOCKER_IMAGE: ${{ steps.login-ecr.outputs.registry }}/${{ env.DOCKER_IMAGE_REPOSITORY }}
         run: docker push "${DOCKER_IMAGE}:${GITHUB_SHA}"
 
   deploy:

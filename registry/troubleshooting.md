@@ -55,7 +55,7 @@
 - 라우트는 맞지만 upstream 호출이 실패한다.
 
 ##### 원인
-- `AUTH_SERVICE_URL`, `AUTHZ_SERVICE_URL`, `USER_SERVICE_URL`, `BLOCK_SERVICE_URL` 중 하나가 잘못됨
+- `AUTH_SERVICE_URL`, `USER_SERVICE_URL`, `EDITOR_SERVICE_URL`, `AUTHZ_ADMIN_VERIFY_URL` 중 하나가 잘못됨
 - shared network alias가 누락됨
 - upstream 서비스가 다른 브랜치/포트로 떠 있음
 
@@ -67,8 +67,8 @@
 ##### 조치
 1. `./scripts/msa-stack.sh ps`로 컨테이너 이름과 포트를 본다.
 2. current 기준 authz compose service key는 dev/prod 모두 `authz-service`인지 확인한다.
-3. Gateway 환경변수가 실제 authz host를 바라보는지 확인한다.
-4. editor/document upstream은 current 구현 기준 `documents-service:8083`인지 확인한다.
+3. Gateway 환경변수가 실제 authz verify endpoint를 바라보는지 확인한다.
+4. editor upstream은 current 구현 기준 `EDITOR_SERVICE_URL -> editor-service:8083`인지 확인하고, legacy alias를 쓰면 `documents-service`도 함께 확인한다.
 
 #### 3. Gateway가 로그인 이후에도 세션을 못 찾음
 ##### 증상
@@ -98,6 +98,7 @@
 ##### 원인
 - `Origin` 허용 목록이 비어 있거나 다름
 - preflight 응답 헤더가 누락됨
+- upstream이나 프록시가 이미 넣은 `Access-Control-Allow-*` 헤더와 Gateway 응답 헤더가 충돌함
 - 프록시/로드밸런서가 `OPTIONS`를 가로챔
 
 ##### 확인
@@ -107,7 +108,8 @@
 ##### 조치
 1. `Origin`과 CORS 설정을 비교한다.
 2. `OPTIONS`가 Gateway까지 도달하는지 확인한다.
-3. 응답의 `Access-Control-Allow-*` 헤더를 점검한다.
+3. current Gateway 구현은 `beforeCommit`에서 기존 `Access-Control-Allow-*` 헤더를 지우고 다시 세팅하므로, 중복 헤더가 보이면 Gateway 앞단 프록시를 먼저 의심한다.
+4. 응답의 `Access-Control-Allow-*` 헤더를 점검한다.
 
 #### 5. INTERNAL 라우트가 거부됨
 ##### 증상
@@ -252,6 +254,7 @@
 
 ##### 원인
 - Redis 장애
+- dev compose의 `authz-mysql` healthcheck 실패
 - DB 일부 마이그레이션 누락
 - 캐시 초기화 실패
 
@@ -261,8 +264,9 @@
 
 ##### 조치
 1. DB와 Redis 연결을 분리해서 본다.
-2. 캐시 없이 DB fallback이 되는지 확인한다.
-3. readiness가 `DOWN`인 이유를 로그에서 찾는다.
+2. dev 환경이면 `authz-mysql`이 먼저 healthy인지 확인한다.
+3. 캐시 없이 DB fallback이 되는지 확인한다.
+4. readiness가 `DOWN`인 이유를 로그에서 찾는다.
 
 #### 3. 관리자 경로는 되는데 정책 조회가 어긋남
 ##### 증상
@@ -444,7 +448,7 @@
 - `repositories/gateway-service/cache.md`
 
 ##### 조치
-1. `gateway:session:`과 `gateway:admin-permission:` prefix를 확인한다.
+1. `gateway:session:`과 `gateway:admin-authz:` prefix를 확인한다.
 2. TTL이 문서와 맞는지 본다.
 3. key collision 여부를 확인한다.
 
@@ -465,7 +469,7 @@
 ##### 조치
 1. `redis-cli PING`으로 직접 확인한다.
 2. Gateway/Authz/terraform 예시는 `central-redis`, Redis repo service key는 `redis-server`를 쓰는지 확인한다.
-3. Redis 예제 env의 `backend-shared`와 실제 shared network 이름이 같은지 확인한다.
+3. Redis 예제 env의 `service-backbone-shared`와 실제 shared network 이름이 같은지 확인한다.
 
 #### 3. 키 prefix가 섞임
 ##### 증상
@@ -694,6 +698,129 @@
 ##### 조치
 1. Block 서버 브랜치와 실행 스크립트를 현재 main 기준으로 맞춘다.
 2. editor가 참조하는 block contract 버전을 확인한다.
+
+#### 7. `segment`에 block type을 넣으면 editor validation이 400으로 실패함
+##### 증상
+- block 저장 요청은 가는데 `400`이나 validation 실패로 떨어진다.
+- `segment.type`, `segment.blockType` 같은 필드를 넣은 payload만 실패한다.
+- 같은 요청에서 `text`, `marks`만 남기면 통과한다.
+
+##### 원인
+- current editor validator는 `segment`에 `text`, `marks`만 허용한다.
+- rich-text subtype은 `segment`가 아니라 optional `content.blockType`으로만 받는다.
+- top-level `Block.type`은 계속 `TEXT`이고, `content.blockType` 허용값은 `paragraph`, `heading1`, `heading2`, `heading3`다.
+
+##### 확인
+- `repositories/editor-service/schema-v1.md`
+- `repositories/editor-service/rules-v1.md`
+- `repositories/editor-service/api.md`
+
+##### 조치
+1. block subtype이 필요하면 `content.blockType`으로 보낸다.
+2. `segment`에는 `text`, `marks`만 남긴다.
+3. `content.blockType`을 생략했다면 paragraph 기본형으로 해석되는지 함께 확인한다.
+
+#### 8. 여러 블록 선택 기준으로 요청을 보냈는데 editor API shape가 맞지 않음
+##### 증상
+- 프론트가 여러 선택 블록을 한 번에 move, delete, edit하려고 `selectedBlockIds`, `blockIds`, selection range 같은 필드를 기대한다.
+- 한 번의 move 요청으로 여러 블록을 옮기려는데 API가 단일 `blockRef` 또는 단일 `resourceId`만 받는다.
+- batch save가 있으니 multi-select도 당연히 지원한다고 오해한다.
+
+##### 원인
+- current v1 editor save batch는 여러 단일 블록 operation의 순차 적용 모델이다.
+- save operation은 단일 `blockRef`, move operation은 단일 `resourceId` 기준으로 설계돼 있다.
+- 여러 블록 delete나 subtype 일괄 변경은 여러 단건 operation으로 풀 수 있지만, 여러 블록의 상대 순서를 보존한 group move semantics는 v1에 없다.
+
+##### 확인
+- `repositories/editor-service/schema-v1.md`
+- `repositories/editor-service/rules-v1.md`
+- `repositories/editor-service/api.md`
+- `repositories/editor-service/operations.md`
+
+##### 조치
+1. 현재 v1 범위에서는 multi-select 자체를 서버 계약으로 가정하지 않는다.
+2. 여러 블록 delete나 subtype 일괄 변경은 클라이언트가 여러 `BLOCK_DELETE` 또는 `BLOCK_REPLACE_CONTENT` operation으로 batch를 조립한다.
+3. 여러 선택 블록의 상대 순서를 유지한 bulk move가 필요하면 별도 request, validation, result 계약을 추가하는 방향으로 설계한다.
+
+#### 9. block move 요청이 `400`으로 실패하면 먼저 `save batch의 BLOCK_MOVE`와 explicit move endpoint를 구분한다
+##### 증상
+- block move를 구현했는데 어떤 요청은 통과하고 어떤 요청은 같은 의미처럼 보여도 `400`으로 실패한다.
+- 프론트가 `blockRef`, `parentRef`, `afterRef`, `beforeRef` shape를 `POST /v1/editor-operations/move`에도 그대로 보낸다.
+- 반대로 explicit move endpoint에 필요한 `resourceType`, `resourceId`, `targetParentId`, `afterId`, `beforeId`, `version` 없이 호출한다.
+
+##### 원인
+- current 구현에는 block move 경로가 2개 있다.
+- save batch 안의 `BLOCK_MOVE`는 `blockRef`, `parentRef`, `afterRef`, `beforeRef`를 쓰고, 같은 batch 안의 temp ref도 해석할 수 있다.
+- explicit move endpoint `POST /v1/editor-operations/move`는 `resourceType`, `resourceId`, `targetParentId`, `afterId`, `beforeId`를 쓰며 temp ref를 받지 않는다.
+
+##### 확인
+- `repositories/editor-service/api.md`
+- `repositories/editor-service/rules-v1.md`
+- `repositories/editor-service/operations.md`
+- `repositories/editor-page/README.md`
+
+##### 조치
+1. editor-page 저장 queue 안의 이동이면 `POST /v1/editor-operations/documents/{documentId}/save` + `type=BLOCK_MOVE`를 사용한다.
+2. drag-and-drop 확정 이동처럼 explicit move contract를 쓸 때는 `POST /v1/editor-operations/move`와 `resourceType=BLOCK` shape를 사용한다.
+3. 두 endpoint의 request 필드를 섞어 쓰지 않는다.
+
+#### 10. explicit block move는 `version`이 없으면 유효성 검사에서 바로 막힌다
+##### 증상
+- `POST /v1/editor-operations/move`가 `400`으로 떨어지고 서버 비즈니스 로직까지 들어가지 않는다.
+- 문서 move는 되는데 block move만 실패한다.
+
+##### 원인
+- current explicit move DTO는 `resourceType=BLOCK`이면 `version`을 필수로 요구한다.
+- 기존 서버 block 이동은 낙관적 락 기준이므로, 최신 block version 없이 move를 허용하지 않는다.
+
+##### 확인
+- `repositories/editor-service/api.md`
+- `repositories/editor-service/rules-v1.md`
+
+##### 조치
+1. explicit block move에는 항상 현재 block `version`을 함께 보낸다.
+2. 문서 move와 block move의 요청 shape를 동일하게 취급하지 않는다.
+3. 같은 batch 안의 temp block 이동처럼 `version` 없는 move가 필요한 경우는 explicit move endpoint가 아니라 save batch `BLOCK_MOVE` 경로를 사용한다.
+
+#### 11. block move가 같은 자리 drop이면 실패가 아니라 no-op 성공일 수 있다
+##### 증상
+- 사용자는 블록을 움직였다고 생각하지만 응답 후 version과 documentVersion이 그대로다.
+- 저장이 안 된 것처럼 보이지만 에러는 없다.
+
+##### 원인
+- current 구현은 같은 위치로 계산된 block move를 no-op 성공으로 처리한다.
+- save batch에서는 `BLOCK_MOVE` status가 `NO_OP`가 될 수 있고, explicit move에서도 증가하지 않은 block/document version을 그대로 응답할 수 있다.
+
+##### 확인
+- `repositories/editor-service/operations.md`
+- `repositories/editor-service/rules-v1.md`
+
+##### 조치
+1. no-op move를 실패로 처리하지 않는다.
+2. 프론트는 응답의 `version`, `documentVersion`, `sortKey`, 또는 save batch의 `status=NO_OP`를 기준으로 로컬 상태를 동기화한다.
+3. drag 중간 hover 변화가 아니라 최종 drop 위치만 move 요청으로 보내도록 유지한다.
+
+#### 12. block move에서 anchor 조합이나 target parent가 조금만 어긋나도 `INVALID_REQUEST`가 난다
+##### 증상
+- block move가 `400 INVALID_REQUEST`로 실패한다.
+- `afterId`, `beforeId`, `afterRef`, `beforeRef`를 넣었는데 어떤 조합에서는 바로 거절된다.
+- 다른 문서의 블록을 parent나 anchor로 참조했을 때 실패한다.
+
+##### 원인
+- current 구현은 self-anchor, same-anchor, reversed anchor, target parent와 맞지 않는 anchor 조합을 잘못된 요청으로 거절한다.
+- target parent는 같은 document의 active block이어야 하고, 자기 자신이나 자기 하위 subtree 아래로 이동하는 cycle도 허용하지 않는다.
+- block depth 제한을 넘는 이동도 거절된다.
+
+##### 확인
+- `repositories/editor-service/operations.md`
+- `repositories/editor-service/rules-v1.md`
+- `repositories/editor-service/api.md`
+
+##### 조치
+1. `after*`와 `before*`는 같은 target sibling 집합을 가리키도록 보낸다.
+2. 다른 document 소속 block을 `targetParentId`, `afterId`, `beforeId`, `parentRef`, `afterRef`, `beforeRef`로 보내지 않는다.
+3. 자기 자신, 자기 자식 subtree 아래로 이동하는 cycle 요청은 만들지 않는다.
+4. save batch에서는 temp anchor를 쓸 수 있지만, 아직 생성되지 않은 temp anchor를 먼저 참조하면 실패하므로 request 순서를 맞춘다.
 
 ### Authz/Permission bridge
 #### 1. Gateway는 `Authz`라고 부르는데 로그는 `authz-service`로 남음
@@ -1054,6 +1181,7 @@ git diff --check
 - Gateway가 브라우저 preflight를 프레임워크 레벨에서 먼저 허용하지 못한다.
 - 허용 origin 목록과 실제 프런트 origin이 다르다.
 - `credentials: include`를 쓰는데 CORS 응답 헤더가 그것과 맞지 않는다.
+- 앞단 프록시가 Gateway가 정규화한 `Access-Control-Allow-*` 헤더를 다시 덧붙인다.
 
 #### 확인
 - `repositories/gateway-service/auth.md`
@@ -1064,6 +1192,7 @@ git diff --check
 1. 브라우저 origin과 Gateway CORS 허용 origin을 정확히 맞춘다.
 2. `OPTIONS` 응답에 `Access-Control-Allow-Origin`, `Access-Control-Allow-Credentials`, `Access-Control-Allow-Methods`, `Access-Control-Allow-Headers`가 모두 있는지 본다.
 3. 로컬 기준 origin이 `http://127.0.0.1:3000`이면 Gateway도 그 값을 명시적으로 허용해야 한다.
+4. current Gateway 구현은 `beforeCommit`에서 CORS 헤더를 정규화하므로, 동일 헤더가 중복되면 Nginx/프록시 레이어를 먼저 점검한다.
 
 ### 11. 쿠키가 있는데도 `GET /v1/auth/me`가 `401 authentication required`면 Gateway/Auth의 세션 판정 순서를 같이 본다
 #### 증상
@@ -1218,3 +1347,126 @@ git diff --check
 1. 운영 sink SPI는 `AuditSink`로 본다.
 2. 서비스 도메인 audit 구현은 `AuditLogger` 또는 `AuditSink`를 우선 사용한다.
 3. `AuditLogRecorder`는 `platform-governance-adapter-auditlog`에 있는 bridge/test/compat adapter로 설명하고, 새 서비스 구현의 기본 선택지로 적지 않는다.
+
+### 19. editor-page base URL에 `/v1`를 넣으면 요청 경로가 `/v1/v1/...`로 깨진다
+#### 증상
+- editor-page에서 auth, document, save 요청이 전부 `404` 또는 잘못된 경로로 실패한다.
+- 네트워크 탭을 보면 `http://localhost:8080/v1/v1/auth/me`, `/v1/v1/documents`, `/v1/v1/editor-operations/...`처럼 `/v1`가 두 번 붙는다.
+
+#### 원인
+- current editor-page 구현은 base URL에 `/v1`를 넣지 않고, endpoint 상수 쪽에 `/v1/**`를 포함하는 방식이다.
+- `VITE_GATEWAY_BASE_URL` 또는 `VITE_API_BASE_URL`에 `/v1`를 붙이면 endpoint 상수와 중복된다.
+
+#### 확인
+- `repositories/editor-page/README.md`
+
+#### 조치
+1. `VITE_GATEWAY_BASE_URL`, `VITE_API_BASE_URL`, `VITE_DOCUMENTS_API_BASE_URL`은 `http://localhost:8080`처럼 Gateway origin만 넣는다.
+2. `/v1` prefix는 endpoint 상수에서만 붙인다.
+3. 네트워크 탭에서 최종 URL이 `http://<gateway-origin>/v1/...` 한 번만 조립되는지 확인한다.
+
+### 20. editor-page가 Gateway 대신 backend를 직접 호출하면 local에서는 붙어도 계약상 바로 drift가 난다
+#### 증상
+- 어떤 화면은 되는데 어떤 화면은 CORS, cookie, path rewrite 문제로 자주 깨진다.
+- 브라우저가 `auth-service`, `editor-service`, `user-service`를 직접 호출하도록 임시 수정한 뒤 로그인과 저장 동작이 불안정해진다.
+
+#### 원인
+- current browser contract는 Gateway public `/v1/**`만 직접 호출하는 구조다.
+- backend direct 호출로 바꾸면 CORS, trusted header, cookie path/domain, public/upstream route 차이를 프런트가 직접 떠안게 된다.
+
+#### 확인
+- `repositories/editor-page/README.md`
+- `shared/routing.md`
+- `repositories/gateway-service/README.md`
+
+#### 조치
+1. 브라우저에서는 Gateway만 직접 호출한다.
+2. `auth-service`, `editor-service`, `user-service` 직접 호출은 local debug나 내부 서버 통신 문맥으로만 제한한다.
+3. editor-page 환경변수와 API 클라이언트가 최종적으로 `http://<gateway-origin>/v1/...`만 치는지 확인한다.
+
+### 21. editor-page save와 move는 Gateway public `/v1/editor-operations/**`를 써야지 service 내부 path와 섞으면 안 된다
+#### 증상
+- 문서 조회는 되는데 저장이나 이동만 `404`, `405`, `NOT_FOUND`로 떨어진다.
+- 프런트가 `POST /v1/documents/{documentId}/transactions` 또는 `/documents/{documentId}/transactions` 같은 경로를 호출한다.
+- move를 `/v1/documents/{documentId}/move`나 block admin path로 잘못 보내는 경우가 있다.
+
+#### 원인
+- current Gateway 외부 공개 route는 `/v1/editor-operations/**`이고, editor-page도 그 경로를 소비한다.
+- editor-service 문서 안에는 service 내부 경로 설명과 transaction 개념 설명이 함께 있어, 브라우저 public route와 upstream/internal route를 혼동하기 쉽다.
+
+#### 확인
+- `repositories/editor-page/README.md`
+- `repositories/editor-service/api.md`
+- `repositories/gateway-service/README.md`
+
+#### 조치
+1. editor-page 저장은 `POST /v1/editor-operations/documents/{documentId}/save`를 사용한다.
+2. editor-page 이동은 `POST /v1/editor-operations/move`를 사용한다.
+3. `/documents/{documentId}/transactions`, `/documents/{documentId}/move`, `/admin/**`는 브라우저 public route와 같은 레벨로 취급하지 않는다.
+
+### 22. editor-page 기능 추가 전에는 현재 서버 지원 범위를 먼저 고정해야 한다
+#### 증상
+- heading picker, multi-block action, group move 같은 기능을 붙였는데 일부만 저장되고 일부는 validation 또는 contract mismatch로 실패한다.
+- 프런트는 기능을 추가했으니 서버도 비슷하게 받아줄 것이라고 가정하지만, 실제 payload shape와 지원 범위가 다르다.
+
+#### 원인
+- current v1에서 rich-text subtype 추가는 optional `content.blockType`으로만 지원한다.
+- `segment`는 `text`, `marks`만 허용한다.
+- transaction batch는 여러 단건 operation의 순차 적용일 뿐, 여러 블록 selection 자체를 표현하지 않는다.
+- 여러 블록 delete나 subtype 일괄 변경은 클라이언트가 여러 operation으로 조립할 수 있지만, 여러 블록의 상대 순서를 보존한 bulk move는 아직 별도 계약이 없다.
+
+#### 확인
+- `repositories/editor-page/README.md`
+- `repositories/editor-service/schema-v1.md`
+- `repositories/editor-service/rules-v1.md`
+- `repositories/editor-service/operations.md`
+
+#### 조치
+1. heading 계열 기능은 `content.blockType=paragraph|heading1|heading2|heading3` 범위로만 보낸다.
+2. `segment.type`, `segment.blockType`, `selectedBlockIds`, `groupMove` 같은 필드를 현재 v1 request에 임의로 추가하지 않는다.
+3. 여러 블록 delete나 subtype 일괄 변경은 여러 `BLOCK_DELETE` 또는 `BLOCK_REPLACE_CONTENT` operation으로 batch를 조립한다.
+4. 여러 선택 블록의 상대 순서를 유지한 bulk move가 필요하면 새 request, validation, response 계약부터 추가한다.
+
+### 23. undo/redo를 서버 history나 restore API처럼 기대하면 저장 이후 UX가 바로 어긋난다
+#### 증상
+- editor-page에 undo/redo를 붙였는데 새로고침 후에는 직전 편집 취소가 안 된다.
+- 다른 탭이나 다른 브라우저에서 방금 한 수정까지 undo/redo 되길 기대한다.
+- delete 후 바로 복구는 되는데, 저장 후 세션이 바뀌면 같은 동작이 안 돼서 버그처럼 보인다.
+
+#### 원인
+- current editor 계약에서 같은 브라우저 세션 안의 직전 삭제/수정 복구는 클라이언트 undo/redo가 담당한다.
+- v1에는 block 단위 server restore API나 서버 소유 undo/redo history API가 없다.
+- 서버는 최종 save batch 반영만 소유하고, 편집기의 세션별 history stack은 소유하지 않는다.
+
+#### 확인
+- `repositories/editor-service/rules-v1.md`
+- `repositories/editor-service/operations.md`
+- `repositories/editor-service/api.md`
+
+#### 조치
+1. undo/redo는 editor-page 로컬 상태와 로컬 queue 기준으로 구현한다.
+2. 새로고침, 탭 전환, 다른 디바이스까지 이어지는 공용 history를 기대하지 않는다.
+3. 저장 이후에도 같은 브라우저 세션에서만 취소/재실행 UX를 유지하고, 서버에는 최종 batch만 반영한다.
+4. 서버 복구가 필요하면 undo/redo가 아니라 별도 restore/history 계약을 새로 정의한다.
+
+### 24. 입력 단위를 batch로 묶어 UX를 높였으면 저장 시점과 로컬 반영 시점을 분리해서 이해해야 한다
+#### 증상
+- 타이핑할 때 UI는 즉시 반응하는데 서버 저장은 나중에 일어나서 “입력이 씹힌다”는 오해가 생긴다.
+- autosave, `Ctrl+S`, page leave가 서로 다른 저장 기능처럼 다뤄져 중복 호출이나 경쟁 상태가 생긴다.
+- 같은 블록을 여러 번 수정하거나 이동했는데 서버에는 마지막 상태만 반영되어 디버깅 시 혼란이 생긴다.
+
+#### 원인
+- current editor save 모델은 입력 이벤트마다 서버를 호출하지 않고, 로컬 상태를 먼저 바꾼 뒤 queue에서 의미 없는 중간 변경을 상쇄/병합해 최종 batch만 보낸다.
+- autosave와 `Ctrl+S`는 서로 다른 API가 아니라 같은 queue flush 트리거다.
+- debounce만으로 무한정 저장을 미루지 않기 위해 `max autosave interval` 기준 강제 flush를 둔다.
+
+#### 확인
+- `repositories/editor-service/operations.md`
+- `repositories/editor-service/rules-v1.md`
+- `repositories/editor-page/README.md`
+
+#### 조치
+1. editor-page는 입력 즉시 로컬 UI를 반영하고, 서버 반영은 save batch flush 시점으로 분리한다.
+2. autosave, `Ctrl+S`, page leave는 같은 queue를 flush하는 서로 다른 트리거로만 취급한다.
+3. 같은 flush 전에 생긴 `create -> replace -> delete`, 연속 content 수정, 연속 move 같은 중간 상태는 queue에서 상쇄/병합한다.
+4. 서버에 “모든 입력 이벤트”가 아니라 “현재까지 반영할 가치가 있는 최종 batch”만 보내는 것이 정상 동작임을 기준으로 본다.

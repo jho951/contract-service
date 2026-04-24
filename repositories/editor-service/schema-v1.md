@@ -89,6 +89,7 @@ Block {
 {
   "format": "rich_text",
   "schemaVersion": 1,
+  "blockType": "paragraph",
   "segments": [
     {
       "text": "Hello ",
@@ -113,13 +114,17 @@ Block {
 ### 설명
 - `content.format`: 본문 표현 포맷. v1은 `rich_text`만 허용한다.
 - `content.schemaVersion`: content 스키마 버전. v1은 `1`로 시작한다.
+- `content.blockType`: optional rich-text subtype. 현재 허용값은 `paragraph`, `heading1`, `heading2`, `heading3`다. 값이 없으면 paragraph 기본형으로 해석한다.
 - `content.segments`: 순서가 보장되는 텍스트 조각 배열
+- 현재 validator 기준 `content` 허용 필드는 `format`, `schemaVersion`, `segments`, `blockType`뿐이다.
 - `segment.text`: 실제 텍스트 조각
 - `segment.marks`: 해당 텍스트 조각에 적용된 mark 목록
+- `segment` 허용 필드는 `text`, `marks`뿐이다. `segment.type`이나 `segment.blockType`은 v1 범위에 없다.
 - `mark.type`: mark 종류. v1 허용값은 `bold`, `italic`, `textColor`, `underline`, `strikethrough`
 - `mark.value`: 값이 필요한 mark에서만 사용한다. v1에서는 `textColor`에만 사용한다.
+- 새 빈 블록은 `segments=[{"text":"","marks":[]}]` 한 개를 가진 empty content를 허용한다.
 - `Block.type`과 `content.format`은 같은 의미가 아니다.
-- `Block.type`은 블록 종류를 나타내고, `content.format`은 TEXT 블록 내부 본문 표현 포맷을 나타낸다.
+- `Block.type`은 블록 종류를 나타내고, `content.format`과 `content.blockType`은 TEXT 블록 내부 본문 표현 포맷/서브타입을 나타낸다.
 
 ## 6.5 DocumentTransaction
 
@@ -162,13 +167,16 @@ DocumentTransactionAppliedOperationResponse {
 ### 설명
 - `clientId`: transaction을 보낸 클라이언트 식별자
 - `batchId`: transaction batch 식별자
-- `operations`: 순서가 보장되는 operation 배열
+- `operations`: 순서가 보장되는 operation 배열. 현재 각 원소는 단일 블록 기준 operation이다.
 - `opId`: operation 추적용 ID
 - `blockRef`: 새 블록 생성 시 temp ref 또는 기존 블록 ref
 - `content`: `BLOCK_REPLACE_CONTENT`에서만 사용한다.
 - `parentRef`, `afterRef`, `beforeRef`: block 이동/삽입 anchor
 - `status`: operation 처리 결과
 - `tempId`: 생성 시 임시 참조를 되돌려주는 값
+- `DocumentTransactionRequest`에는 `selectedBlockIds`, `blockIds`, `selectionRange`, `groupMove` 같은 다중 선택 전용 필드가 없다.
+- 여러 블록을 한 번에 바꾸려면 클라이언트가 여러 단일 operation으로 batch를 조립해야 한다.
+- 여러 블록의 상대 순서를 보존한 group move semantics는 현재 v1 응답/요청 shape에 정의돼 있지 않다.
 
 ## 6.6 공통 응답 envelope
 

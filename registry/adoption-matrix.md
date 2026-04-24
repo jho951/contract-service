@@ -9,7 +9,7 @@
 | Redis | https://github.com/jho951/redis-service | main | `contract.lock.yml` | adopted | gateway/permission 캐시 키 계약을 소유 |
 | Monitoring | https://github.com/jho951/monitoring-service | main | `contract.lock.yml` | adopted | metrics/logs/dashboard/alert 운영 계약을 소유 |
 | audit-log | https://github.com/jho951/audit-log | main | `contract.lock.yml` | adopted | 전 서비스 공통 감사 이벤트 수집과 증적 보존을 소유 |
-| Editor | https://github.com/jho951/editor-service | dev | `contract.lock.yml` | adopted | 문서/블록 API 계약을 소유 |
+| Editor | https://github.com/jho951/editor-service | main | `contract.lock.yml` | adopted | 문서/블록 API 계약을 소유 |
 | Editor-page | https://github.com/jho951/Editor-page | master | 없음 | partial | editor UI 소비자. 현재 구현은 Gateway를 직접 호출하지만 `contract.lock.yml`은 아직 없음 |
 | Explain-page | https://github.com/jho951/Explain-page | main | 없음 | partial | 설명 UI 소비자. Gateway cookie auth를 사용하지만 `contract.lock.yml`은 아직 없음 |
 

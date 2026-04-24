@@ -5,6 +5,15 @@
 - `users/me` 는 Gateway 재주입 또는 Gateway 내부 JWT 인증이 함께 동작해야 한다.
 - 내부 API는 `GatewayUserPrincipal` 또는 내부 JWT 컨텍스트를 신뢰한다.
 - 공개 API는 기능 플래그로 꺼질 수 있다.
+- `GET /health`, `GET /ready`, `GET /actuator/prometheus`를 operator/private network 기준으로 제공한다.
+
+## Monitoring Baseline
+| Signal | 기준 |
+| --- | --- |
+| liveness | `/health` |
+| readiness | `/ready` |
+| metrics | `/actuator/prometheus` |
+| focus | signup/users/me/internal user lookup latency, DB saturation, 4xx/5xx |
 
 ## Operational Flows
 - signup 후에는 user 생성 응답과 상태를 검증한다.
@@ -17,6 +26,9 @@
 - 오류 증가 시 `7100~7102`, `7200~7202`, `7099` 계열을 먼저 본다.
 
 ## Validation
+- `GET /health`
+- `GET /ready`
+- `GET /actuator/prometheus`
 - `/users/signup`
 - `/users/me`
 - `/internal/users`
@@ -31,3 +43,4 @@
 ## Notes
 - 공개 API는 Gateway 경유를 기본으로 한다.
 - 내부 사용자 식별은 `X-User-Id`와 `issuer=api-gateway`, `audience=internal-services` 내부 JWT를 기준으로 한다.
+- 모니터링 baseline은 [../../shared/monitoring.md](../../shared/monitoring.md)를 따른다.

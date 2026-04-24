@@ -1,0 +1,25 @@
+services:
+  mysql:
+    restart: unless-stopped
+    networks:
+      user-private:
+        aliases:
+          - mysql
+
+  user-service:
+    restart: unless-stopped
+    ports:
+      - "${USER_SERVICE_HOST_BIND:-127.0.0.1}:${USER_SERVICE_HOST_PORT:-8082}:8082"
+    networks:
+      user-private: {}
+      service-shared:
+        aliases:
+          - user-service
+
+networks:
+  user-private:
+    driver: bridge
+    internal: true
+  service-shared:
+    external: true
+    name: ${SERVICE_SHARED_NETWORK:-${BACKEND_SHARED_NETWORK:-${MSA_SHARED_NETWORK:-service-backbone-shared}}}

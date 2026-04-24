@@ -1,7 +1,5 @@
 # Monitoring README Contract Source Section
 
-Use this block near the top of the `monitoring-service` README.
-
 ```md
 ## Contract Source
 - Contract Repo: https://github.com/jho951/service-contract

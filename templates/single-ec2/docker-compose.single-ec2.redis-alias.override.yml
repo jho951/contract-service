@@ -1,0 +1,15 @@
+services:
+  <redis-service-name>:
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    networks:
+      service-backbone-shared:
+        aliases:
+          - redis
+          - central-redis
+
+networks:
+  service-backbone-shared:
+    external: true
+    name: service-backbone-shared

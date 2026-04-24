@@ -51,3 +51,4 @@
 - 모든 성공 응답은 `GlobalResponse` envelope를 사용한다.
 - `SuccessCode`는 HTTP status와 비즈니스 성공 코드를 함께 정의한다.
 - 공개 API 노출 여부는 기능 플래그로 제어될 수 있다.
+- theme preference(`LIGHT|DARK|SYSTEM`, default `LIGHT`)는 현재 v1 범위 밖이며, v2 후보로 [v2-extension.md](v2-extension.md)에 기록한다.

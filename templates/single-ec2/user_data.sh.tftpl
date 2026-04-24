@@ -1,0 +1,63 @@
+#!/bin/bash
+set -euo pipefail
+
+DEPLOY_USER="${deploy_user}"
+BASE_DIR="${base_dir}"
+NETWORK_NAME="${network_name}"
+SHARED_DIR="${base_dir}/shared"
+LOG_DIR="${base_dir}/shared/logs"
+OVERRIDE_DIR="${base_dir}/shared/overrides"
+ENV_DIR="${base_dir}/shared/env"
+
+if command -v dnf >/dev/null 2>&1; then
+  dnf -y update
+  dnf -y install docker git jq curl
+elif command -v apt-get >/dev/null 2>&1; then
+  apt-get update
+  apt-get install -y docker.io docker-compose-plugin git jq curl
+else
+  echo "Unsupported package manager" >&2
+  exit 1
+fi
+
+systemctl enable --now docker
+
+if id "${DEPLOY_USER}" >/dev/null 2>&1; then
+  usermod -aG docker "${DEPLOY_USER}"
+fi
+
+mkdir -p "${SHARED_DIR}" "${LOG_DIR}" "${OVERRIDE_DIR}" "${ENV_DIR}"
+chmod 755 "${BASE_DIR}" "${SHARED_DIR}" "${OVERRIDE_DIR}" "${ENV_DIR}"
+
+cat > /usr/local/bin/ensure-service-backbone-network.sh <<EOF
+#!/bin/bash
+set -euo pipefail
+docker network inspect "${NETWORK_NAME}" >/dev/null 2>&1 || docker network create "${NETWORK_NAME}"
+EOF
+
+chmod +x /usr/local/bin/ensure-service-backbone-network.sh
+/usr/local/bin/ensure-service-backbone-network.sh
+
+cat > "${SHARED_DIR}/single-ec2-runtime.env" <<EOF
+SERVICE_BACKBONE_NETWORK=${network_name}
+DEPLOY_BASE_DIR=${base_dir}
+EOF
+
+cat > /etc/systemd/system/ensure-service-backbone-network.service <<EOF
+[Unit]
+Description=Ensure shared Docker network for single EC2 MSA deployment
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/ensure-service-backbone-network.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable ensure-service-backbone-network.service
+systemctl start ensure-service-backbone-network.service

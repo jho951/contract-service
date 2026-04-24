@@ -10,6 +10,7 @@ Monitoring stack은 운영 정보를 모으므로 public surface로 취급하지
 | Loki API | operator IP/VPN 또는 private network only |
 | Promtail | 외부 inbound 없음 |
 | metrics endpoints | monitoring-service와 operator network only |
+| Redis exporter endpoint | monitoring-service와 operator network only |
 
 ## Secret Handling
 | 항목 | 기준 |
@@ -24,5 +25,6 @@ Monitoring stack은 운영 정보를 모으므로 public surface로 취급하지
 - Grafana anonymous access는 production에서 비활성화한다.
 - Prometheus와 Loki는 public internet에 직접 노출하지 않는다.
 - 서비스의 `/actuator/prometheus`는 인증 또는 network boundary로 보호한다.
-- dashboard 권한 변경, datasource 변경, alert receiver 변경은 감사 대상이다.
+- Redis exporter `/metrics`도 public internet에 직접 노출하지 않는다.
+- dashboard 권한 변경, datasource 변경, Grafana admin credential 변경은 감사 대상이다.
 - log query 결과를 외부에 공유할 때 credential과 개인정보가 포함되지 않았는지 확인한다.

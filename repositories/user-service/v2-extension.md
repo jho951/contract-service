@@ -17,6 +17,15 @@
 - `features.public-user-api.enabled`, `features.internal-user-api.enabled` 토글은 새 엔드포인트 추가를 쉽게 한다.
 - 새 경로를 추가할 때는 `SecurityConfig`에 경로별 정책을 함께 붙인다.
 
+### 1.1 Theme preference v2 후보
+- 로그인 사용자 전용 서비스 특성상 theme preference의 source of truth는 `user-service`가 소유한다.
+- v2 후보 값은 `LIGHT`, `DARK`, `SYSTEM`이며, 기본값은 `LIGHT`다.
+- 현재 v1 계약에는 theme preference 조회/수정 API를 포함하지 않는다.
+- v2에서 도입할 때는 `User` 본체 필드 또는 별도 preference 모델 중 하나를 선택하되, DTO, 마이그레이션, 계약 문서를 함께 갱신한다.
+- Gateway가 현재 exact path route table을 유지하면 같은 경로의 메서드 추가가 가장 단순하다.
+  - 예: `GET /users/me` 응답에 `theme` 포함, `PATCH /users/me`로 theme 수정
+- v2에서 `/users/me/preferences` 같은 별도 하위 경로를 선택하면 Gateway public route와 contract lock도 함께 갱신한다.
+
 ## 2. 유스케이스 확장
 - 실제 비즈니스 로직은 `UserServiceImpl` 계열에 모인다.
 - v2 확장은 서비스 메서드를 먼저 추가하고 컨트롤러를 연결하는 방식이 자연스럽다.
@@ -45,6 +54,7 @@
 - 요청 DTO는 `UserRequest`
 - 응답 DTO는 `UserResponse`
 - 새 필드는 DTO와 계약 문서를 동시에 갱신한다.
+- theme preference를 도입하면 `UserDetailResponse` 또는 별도 preference response의 확장 여부를 명시적으로 결정한다.
 
 ## 7. 관측성 확장
 - 소셜 연동 지표는 `SocialLinkMetrics`

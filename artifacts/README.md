@@ -1,7 +1,5 @@
 # Artifacts
 
-`artifacts`는 기계가 읽는 계약 산출물을 담는다.
-
 ## Layout
 | Directory | Purpose |
 | --- | --- |

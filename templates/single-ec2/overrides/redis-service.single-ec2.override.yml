@@ -1,0 +1,22 @@
+services:
+  redis-server:
+    restart: unless-stopped
+    ports:
+      - "${REDIS_BIND_HOST:-127.0.0.1}:${REDIS_BIND_PORT:-6379}:6379"
+    networks:
+      shared-service-network:
+        aliases:
+          - redis
+          - central-redis
+
+  redis-exporter:
+    restart: unless-stopped
+    ports:
+      - "${REDIS_EXPORTER_BIND_HOST:-127.0.0.1}:${REDIS_EXPORTER_PORT:-9121}:9121"
+    networks:
+      - shared-service-network
+
+networks:
+  shared-service-network:
+    external: true
+    name: ${SHARED_SERVICE_NETWORK:-${SERVICE_SHARED_NETWORK:-service-backbone-shared}}

@@ -1,0 +1,26 @@
+services:
+  mysql:
+    restart: unless-stopped
+    networks:
+      documents-private:
+        aliases:
+          - mysql
+
+  editor-service:
+    restart: unless-stopped
+    ports:
+      - "${EDITOR_SERVICE_HOST_BIND:-127.0.0.1}:${EDITOR_SERVICE_HOST_PORT:-8083}:8083"
+    networks:
+      documents-private: {}
+      service-shared:
+        aliases:
+          - editor-service
+          - documents-service
+
+networks:
+  documents-private:
+    driver: bridge
+    internal: true
+  service-shared:
+    external: true
+    name: ${SERVICE_SHARED_NETWORK:-service-backbone-shared}

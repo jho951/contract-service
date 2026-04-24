@@ -8,10 +8,11 @@ Editor 서버의 운영 계약은 repo 이름 `editor-service`와 runtime 이름
 - Node 단일 영속 모델은 별도 미래 검토 문서로만 둔다.
 - `Workspace` backup 코드는 `backup/workspace/` 아래에서만 관리한다.
 - 운영 중 v1 스키마를 깨는 변경은 금지한다.
-- current compose 기준 런타임 service name은 `documents-service:8083`이다.
-- compose project 이름은 `documents-service-dev`, `documents-service-prod`를 사용한다.
-- application name은 `documents-app`이다.
-- contract 문서에서는 repository 이름을 따라 `editor-service` 디렉토리를 유지하지만, 운영 로그/compose/network alias는 `documents-*` 축으로 나타날 수 있다.
+- current compose 기준 canonical service key는 `editor-service:8083`이다.
+- shared-network alias로 `documents-service`도 함께 유지한다.
+- compose project 이름은 `editor-service-dev`, `editor-service-prod`를 사용한다.
+- application name은 `editor-service`다.
+- contract 문서에서는 repository 이름과 동일하게 `editor-service`를 canonical 이름으로 쓰고, `documents-service`는 alias 또는 legacy 운영 문맥으로만 다룬다.
 
 ## 데이터 운영
 - `Document`와 `Block`은 soft delete를 우선한다.
@@ -34,9 +35,18 @@ Editor 서버의 운영 계약은 repo 이름 `editor-service`와 runtime 이름
 - soft delete 오작동, 순환 참조, 정렬 충돌, content schema 오류는 우선순위 높은 운영 이슈로 다룬다.
 - 장애 대응 시 기존 계약을 바꾸기보다 입력 검증과 정합성 검사로 먼저 대응한다.
 
+## Monitoring Baseline
+| Signal | 기준 |
+| --- | --- |
+| liveness | `/actuator/health` |
+| readiness | `/actuator/health/readiness` |
+| metrics | `/actuator/prometheus` |
+| focus | document/block transaction latency, `409` conflict, DB saturation, JVM memory |
+
 ## 릴리스 체크리스트
 - v1 API 호환성 유지
 - editor OpenAPI 반영
 - 계약 문서 갱신
 - sync 파일 갱신
+- `/actuator/health`, `/actuator/health/readiness`, `/actuator/prometheus` 검증
 - smoke test 및 주요 흐름 검증

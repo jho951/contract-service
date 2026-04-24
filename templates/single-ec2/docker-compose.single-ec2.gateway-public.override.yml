@@ -1,0 +1,17 @@
+services:
+  gateway-service:
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    ports:
+      - "80:8080"
+    networks:
+      service-backbone-shared:
+        aliases:
+          - gateway-service
+          - gateway
+
+networks:
+  service-backbone-shared:
+    external: true
+    name: service-backbone-shared

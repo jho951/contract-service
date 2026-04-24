@@ -3,6 +3,9 @@
 현재 `editor-service` 구현의 v1 API는 `Document`와 `Block`을 `GlobalResponse` envelope로 반환한다.
 Gateway 외부 노출 경로는 `/v1/documents/**`, `/v1/admin/**`이고, 서비스 내부 컨트롤러는 `/documents/**`, `/admin/**`를 사용한다.
 
+- TEXT 블록 본문은 `rich_text` 스키마를 사용하고, 현재 구현은 optional `content.blockType`으로 `paragraph`, `heading1`, `heading2`, `heading3`를 허용한다.
+- `segment`는 `text`, `marks`만 허용한다.
+
 ## 공통 응답 envelope
 ```text
 GlobalResponse<T> {
@@ -122,6 +125,7 @@ GlobalResponse<T> {
 - `clientId: string`
 - `batchId: string`
 - `operations: DocumentTransactionOperationRequest[]`
+  순서 있는 단일 블록 operation 배열이다. 현재 API에는 `selectedBlockIds`, `blockIds`, `selectionRange`, `groupMove` 같은 다중 선택 전용 필드가 없다.
 
 ### DocumentTransactionOperationRequest
 - `opId: string`
@@ -129,6 +133,7 @@ GlobalResponse<T> {
 - `blockRef: string | null`
 - `version: number | null`
 - `content: json | null`
+  `rich_text` content 스키마를 따르며 optional `blockType`을 포함할 수 있다.
 - `parentRef: string | null`
 - `afterRef: string | null`
 - `beforeRef: string | null`
@@ -137,11 +142,13 @@ GlobalResponse<T> {
 - `parentId: UUID | null`
 - `type: TEXT`
 - `content: json`
+  `format`, `schemaVersion`, `segments`는 필수이고 `blockType`은 선택이다.
 - `afterBlockId: UUID | null`
 - `beforeBlockId: UUID | null`
 
 ### UpdateBlockRequest
 - `content: json`
+  `rich_text` content 스키마를 따르며 optional `blockType`을 포함할 수 있다.
 - `version: number`
 
 ## 응답 스키마
@@ -321,5 +328,8 @@ GlobalResponse<T> {
 
 ## 비고
 - 현재 v1 저장은 transaction 기반으로 블록 변경을 반영한다.
+- transaction batch는 여러 단건 operation의 묶음이지, 여러 블록 selection 자체를 의미하지 않는다.
+- 여러 블록 delete나 subtype 일괄 변경은 클라이언트가 여러 operation으로 펼쳐 보내야 한다.
+- 여러 블록의 상대 순서를 유지한 bulk move는 현재 API에 없다.
 - `Block` 복구 API는 현재 v1에 없다.
 - `Workspace`는 backup 모델로만 남긴다.

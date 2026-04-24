@@ -1,0 +1,134 @@
+#!/bin/bash
+set -euo pipefail
+
+DEPLOY_USER="${deploy_user}"
+BASE_DIR="${base_dir}"
+NETWORK_NAME="${network_name}"
+CONTRACT_REPO_DIR="${base_dir}/contract-service"
+CONTRACT_REPO_URL="${contract_repo_url}"
+CONTRACT_REPO_REF="${contract_repo_ref}"
+INCLUDE_MONITORING="${include_monitoring}"
+
+GATEWAY_REPO_URL="${gateway_repo_url}"
+GATEWAY_REPO_REF="${gateway_repo_ref}"
+AUTH_REPO_URL="${auth_repo_url}"
+AUTH_REPO_REF="${auth_repo_ref}"
+USER_REPO_URL="${user_repo_url}"
+USER_REPO_REF="${user_repo_ref}"
+AUTHZ_REPO_URL="${authz_repo_url}"
+AUTHZ_REPO_REF="${authz_repo_ref}"
+EDITOR_REPO_URL="${editor_repo_url}"
+EDITOR_REPO_REF="${editor_repo_ref}"
+REDIS_REPO_URL="${redis_repo_url}"
+REDIS_REPO_REF="${redis_repo_ref}"
+MONITORING_REPO_URL="${monitoring_repo_url}"
+MONITORING_REPO_REF="${monitoring_repo_ref}"
+
+bootstrap_host() {
+  if command -v dnf >/dev/null 2>&1; then
+    dnf -y update
+    dnf -y install docker git jq curl
+  elif command -v apt-get >/dev/null 2>&1; then
+    apt-get update
+    apt-get install -y docker.io docker-compose-plugin git jq curl
+  else
+    echo "Unsupported package manager" >&2
+    exit 1
+  fi
+
+  systemctl enable --now docker
+
+  if id "${DEPLOY_USER}" >/dev/null 2>&1; then
+    usermod -aG docker "${DEPLOY_USER}"
+  fi
+
+  mkdir -p "${BASE_DIR}" "${BASE_DIR}/shared" "${BASE_DIR}/shared/logs" "${BASE_DIR}/shared/overrides" "${BASE_DIR}/shared/env"
+  chmod 755 "${BASE_DIR}" "${BASE_DIR}/shared"
+
+  cat > /usr/local/bin/ensure-service-backbone-network.sh <<EOF
+#!/bin/bash
+set -euo pipefail
+docker network inspect "${NETWORK_NAME}" >/dev/null 2>&1 || docker network create "${NETWORK_NAME}"
+EOF
+
+  chmod +x /usr/local/bin/ensure-service-backbone-network.sh
+  /usr/local/bin/ensure-service-backbone-network.sh
+}
+
+clone_or_update_repo() {
+  local repo_url="$1"
+  local repo_ref="$2"
+  local target_dir="$3"
+
+  if [[ -d "${target_dir}/.git" ]]; then
+    git -C "${target_dir}" fetch --all --tags
+  else
+    git clone "${repo_url}" "${target_dir}"
+  fi
+
+  git -C "${target_dir}" checkout "${repo_ref}"
+  git -C "${target_dir}" pull --ff-only origin "${repo_ref}" || true
+}
+
+write_b64_file() {
+  local target_file="$1"
+  local content_b64="$2"
+  mkdir -p "$(dirname "${target_file}")"
+  printf '%s' "${content_b64}" | base64 -d > "${target_file}"
+}
+
+install_contract_and_templates() {
+  clone_or_update_repo "${CONTRACT_REPO_URL}" "${CONTRACT_REPO_REF}" "${CONTRACT_REPO_DIR}"
+  chmod +x "${CONTRACT_REPO_DIR}/templates/single-ec2/scripts/"*.sh
+}
+
+install_service_repos() {
+  clone_or_update_repo "${GATEWAY_REPO_URL}" "${GATEWAY_REPO_REF}" "${BASE_DIR}/gateway-service"
+  clone_or_update_repo "${AUTH_REPO_URL}" "${AUTH_REPO_REF}" "${BASE_DIR}/auth-service"
+  clone_or_update_repo "${USER_REPO_URL}" "${USER_REPO_REF}" "${BASE_DIR}/user-service"
+  clone_or_update_repo "${AUTHZ_REPO_URL}" "${AUTHZ_REPO_REF}" "${BASE_DIR}/authz-service"
+  clone_or_update_repo "${EDITOR_REPO_URL}" "${EDITOR_REPO_REF}" "${BASE_DIR}/editor-service"
+  clone_or_update_repo "${REDIS_REPO_URL}" "${REDIS_REPO_REF}" "${BASE_DIR}/redis-service"
+
+  if [[ "${INCLUDE_MONITORING}" == "true" ]]; then
+    clone_or_update_repo "${MONITORING_REPO_URL}" "${MONITORING_REPO_REF}" "${BASE_DIR}/monitoring-service"
+  fi
+}
+
+write_env_files() {
+  write_b64_file "${BASE_DIR}/gateway-service/.env.prod" "${gateway_env_prod_b64}"
+  write_b64_file "${BASE_DIR}/auth-service/.env.prod" "${auth_env_prod_b64}"
+  write_b64_file "${BASE_DIR}/user-service/.env.prod" "${user_env_prod_b64}"
+  write_b64_file "${BASE_DIR}/authz-service/.env.prod" "${authz_env_prod_b64}"
+  write_b64_file "${BASE_DIR}/editor-service/.env.prod" "${editor_env_prod_b64}"
+  write_b64_file "${BASE_DIR}/redis-service/env.docker.prod" "${redis_env_prod_b64}"
+
+  if [[ "${INCLUDE_MONITORING}" == "true" ]]; then
+    write_b64_file "${BASE_DIR}/monitoring-service/.env.prod" "${monitoring_env_prod_b64}"
+  fi
+}
+
+deploy_stack() {
+  SERVICES_ROOT="${BASE_DIR}" INCLUDE_MONITORING="${INCLUDE_MONITORING}" \
+    "${CONTRACT_REPO_DIR}/templates/single-ec2/scripts/deploy-single-ec2-stack.sh" up
+}
+
+write_runtime_summary() {
+  cat > "${BASE_DIR}/shared/full-stack-deploy.summary" <<EOF
+NETWORK_NAME=${NETWORK_NAME}
+BASE_DIR=${BASE_DIR}
+CONTRACT_REPO_DIR=${CONTRACT_REPO_DIR}
+INCLUDE_MONITORING=${INCLUDE_MONITORING}
+EOF
+}
+
+main() {
+  bootstrap_host
+  install_contract_and_templates
+  install_service_repos
+  write_env_files
+  write_runtime_summary
+  deploy_stack
+}
+
+main "$@"

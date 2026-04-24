@@ -1,0 +1,15 @@
+services:
+  gateway-service:
+    restart: unless-stopped
+    ports:
+      - "${GATEWAY_HOST_BIND:-0.0.0.0}:${GATEWAY_HOST_PORT:-8080}:8080"
+    networks:
+      service-shared:
+        aliases:
+          - gateway-service
+          - gateway
+
+networks:
+  service-shared:
+    external: true
+    name: ${SERVICE_SHARED_NETWORK:-${BACKEND_SHARED_NETWORK:-${MSA_SHARED_NETWORK:-service-backbone-shared}}}

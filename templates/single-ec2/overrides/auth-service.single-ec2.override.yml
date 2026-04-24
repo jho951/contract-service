@@ -1,0 +1,25 @@
+services:
+  auth-service:
+    restart: unless-stopped
+    ports:
+      - "${AUTH_SERVICE_HOST_BIND:-127.0.0.1}:${AUTH_SERVICE_HOST_PORT:-8081}:8081"
+    networks:
+      auth-private: {}
+      service-shared:
+        aliases:
+          - auth-service
+
+  auth-mysql:
+    restart: unless-stopped
+    networks:
+      auth-private:
+        aliases:
+          - auth-mysql
+
+networks:
+  service-shared:
+    external: true
+    name: ${SERVICE_SHARED_NETWORK:-service-backbone-shared}
+  auth-private:
+    driver: bridge
+    internal: true

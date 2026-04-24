@@ -1,0 +1,20 @@
+services:
+  prometheus:
+    restart: unless-stopped
+    ports:
+      - "${PROMETHEUS_BIND_HOST:-127.0.0.1}:${PROMETHEUS_PORT:-9090}:9090"
+
+  grafana:
+    restart: unless-stopped
+    ports:
+      - "${GRAFANA_BIND_HOST:-127.0.0.1}:${GRAFANA_PORT:-3005}:3000"
+
+  loki:
+    restart: unless-stopped
+    ports:
+      - "${LOKI_BIND_HOST:-127.0.0.1}:${LOKI_PORT:-3100}:3100"
+
+networks:
+  service-shared:
+    external: true
+    name: ${SERVICE_SHARED_NETWORK:-service-backbone-shared}

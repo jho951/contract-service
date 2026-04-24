@@ -15,6 +15,7 @@
 - API endpoint 상수에 `/v1/**`를 직접 포함한다.
 - Axios 기본값과 fetch fallback 모두 `withCredentials` 또는 `credentials: "include"`를 사용한다.
 - 브라우저는 backend 개별 서비스가 아니라 Gateway만 호출한다.
+- 현재 v1에는 문서 복제 UI와 복제 API 소비가 없다. 문서 복제는 FE/BE 모두 v2 범위로 올린다.
 
 ## URL 조립 규칙
 Editor-page는 base URL과 endpoint를 아래처럼 조합한다.
@@ -122,6 +123,16 @@ endpoint=/v1/auth/me
 - dev 문서에는 Vite proxy가 `/v1/**`와 legacy `/auth/**`를 backend로 전달한다고 적혀 있다.
 - 현재 로컬 audit 시점의 작업 브랜치는 `codex/editor-auth-loop-fix`였지만, 기본 repo branch는 `master`로 관리한다.
 - 현재 구현에는 `contract.lock.yml`과 contract-check workflow가 없다.
+
+## v2 예정
+- 문서 복제는 v1 범위가 아니다.
+- FE는 LNB/GNB 등 문서 액션 UI에서 duplicate entry를 노출하고, backend v2 duplicate API를 소비하는 방식으로 올린다.
+- 복제 결과는 새 문서 ID를 가진 독립 페이지여야 하며, 제목/icon/cover/body child node/preview 후보를 함께 복사하는 방향을 기본선으로 둔다.
+- 즐겨찾기, recent, 공유 여부 같은 사용자별 관계 메타데이터는 원본에서 자동 승계하지 않는 방향을 기본선으로 둔다.
+- FE 목록 정렬 UI는 최소 `수동`, `이름`, `생성일`, `수정일`을 지원한다.
+- `수동`은 canonical order를 그대로 따르는 보기 모드다.
+- `이름`, `생성일`, `수정일`은 사용자별 preference를 backend v2에서 읽고 저장하는 방식으로 올린다.
+- 이름 정렬은 direction toggle UI를 둘 수 있고, backend는 `asc|desc` 방향을 함께 저장할 수 있어야 한다.
 
 ## 구현 근거
 이 문서는 아래 구현 파일을 기준으로 정리했다.

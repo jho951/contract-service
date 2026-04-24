@@ -40,7 +40,7 @@ cd_profiles:
     target: ec2
     strategy: docker-compose
     environments: [dev, prod]
-    image_registry: ghcr.io
+    image_registry: ecr.amazonaws.com
     deploy_on: protected_branch
     health_check: true
     smoke_test: true
@@ -69,18 +69,23 @@ repositories:
     status: adopted
     runtime:
       compose_project: gateway-service
-      compose_service: gateway
+      compose_service: gateway-service
+      shared_aliases:
+        - gateway
       container_port: 8080
       runtime_health_path: /health
       runtime_ready_path: /ready
+      metrics_path: /actuator/prometheus
       public_health_path: /v1/health
       public_ready_path: /v1/ready
       upstream_defaults:
         auth_service_url: http://auth-service:8081
         user_service_url: http://user-service:8082
-        block_service_url: http://documents-service:8083
+        editor_service_url: http://editor-service:8083
+        editor_service_url_legacy_alias: http://documents-service:8083
         authz_admin_verify_url: http://authz-service:8084/permissions/internal/admin/verify
         redis_host: central-redis
+      authz_cache_prefix_default: "gateway:admin-authz:"
     ci: *ci_spring_boot
     cd:
       <<: *cd_ec2_compose
@@ -98,9 +103,10 @@ repositories:
       compose_project: auth-service
       compose_service: auth-service
       container_port: 8081
-      dev_host_port: 8082
+      dev_host_port: 8081
       shared_network: service-backbone-shared
       private_network: auth-private
+      metrics_path: /actuator/prometheus
     ci: *ci_spring_boot
     cd:
       <<: *cd_ec2_compose
@@ -117,9 +123,13 @@ repositories:
     runtime:
       compose_project: authz-service
       compose_service_dev: authz-service
-      compose_service_prod: permission-service
+      compose_service_prod: authz-service
       container_port: 8084
+      dev_private_network: authz-private
+      dev_mysql_service: authz-mysql
       redis_host_default_dev: central-redis
+      internal_auth_default_mode: HYBRID
+      metrics_path: /actuator/prometheus
       env_prefixes:
         - AUTHZ_
         - PERMISSION_
@@ -141,6 +151,7 @@ repositories:
       container_port: 8082
       shared_network: service-backbone-shared
       private_network: user-private
+      metrics_path: /actuator/prometheus
     ci: *ci_spring_boot
     cd:
       <<: *cd_ec2_compose
@@ -149,20 +160,29 @@ repositories:
       ready_path: /ready
   - name: editor-service
     github: https://github.com/jho951/editor-service
-    branch: dev
+    branch: main
     contract: repositories/editor-service
     lock: contract.lock.yml
     role: backend-service
     status: adopted
     runtime:
-      compose_project_dev: documents-service-dev
-      compose_project_prod: documents-service-prod
-      compose_service: documents-service
+      compose_project_dev: editor-service-dev
+      compose_project_prod: editor-service-prod
+      compose_service: editor-service
+      shared_aliases:
+        - documents-service
       container_port: 8083
-      application_name: documents-app
+      application_name: editor-service
       private_network: documents-private
+      content_block_types:
+        - paragraph
+        - heading1
+        - heading2
+        - heading3
+      uuid_jdbc_type: CHAR
       host_bind_var: DOCUMENTS_SERVICE_HOST_BIND
       host_port_var: DOCUMENTS_SERVICE_HOST_PORT
+      metrics_path: /actuator/prometheus
     ci: *ci_spring_boot
     cd:
       <<: *cd_ec2_compose
@@ -183,7 +203,9 @@ repositories:
       shared_aliases:
         - central-redis
       exporter_container_default: central-redis-exporter
-      shared_network_example_env: backend-shared
+      exporter_port: 9121
+      metrics_path: /metrics
+      shared_network_example_env: service-backbone-shared
     ci: *ci_infra
     cd:
       <<: *cd_ec2_compose
@@ -203,8 +225,21 @@ repositories:
       grafana_host_port_default: 3005
       prometheus_port: 9090
       loki_port: 3100
+      target_file_prod: monitoring/prometheus/targets/ec2-services.yml
+      target_file_dev_overlay: monitoring/prometheus/targets/local-services.yml
+      grafana_dev_private_networks:
+        - auth-private
+        - user-private
+        - documents-private
+        - authz-private
+      grafana_dev_datasource_files:
+        - docker/dev/grafana/provisioning/datasources/prometheus.yml
+        - docker/dev/grafana/provisioning/datasources/mysql.yml
       target_labels:
-        gateway: api-gateway-server
+        auth: auth-service
+        user: user-service
+        editor: editor-service
+        gateway: gateway-service
         authz: authz-service
         redis: redis-server
     ci: *ci_infra

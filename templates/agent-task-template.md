@@ -1,7 +1,5 @@
 # Agent Task Template
 
-## Goal
-- 무엇을 계약 기준으로 맞추는지 1~2줄로 명시
 
 ## Contract Source
 - Repo: `https://github.com/jho951/service-contract`
@@ -60,7 +58,7 @@
 - `authz-service (main)`:
 - `user-service (main)`:
 - `redis-service (main)`:
-- `editor-service (dev)`:
+- `editor-service (main)`:
 - `monitoring-service (main)`:
 - `Editor-page (master)`:
 - `Explain-page (main)`:

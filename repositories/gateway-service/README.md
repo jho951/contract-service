@@ -43,9 +43,21 @@ Gateway는 외부 public API의 진입점이다. Public route versioning, 인증
 | --- | --- |
 | `/v1/auth/**` | Auth-service |
 | `/v1/users/**` | User-service |
-| `/v1/permissions/**` | Authz-service |
 | `/v1/documents/**` | Editor/Block domain |
-| `/v1/admin/**` | Gateway + Authz |
+| `/v1/admin/**` | Gateway + Editor upstream + Authz internal verify |
+
+- Gateway는 현재 public `/v1/permissions/**`를 직접 proxy하지 않는다.
+- 관리자 경로 판정은 내부 `POST /permissions/internal/admin/verify` 호출로 수행한다.
+
+## 라우트 등록 메모
+- 계약 경계는 `/v1/users/**`, `/v1/auth/**`처럼 서비스 단위 prefix를 기준으로 본다.
+- 현재 구현은 일부 public route를 exact path 단위로 등록할 수 있다.
+- Gateway route 매칭은 path 기준이며 method 기준으로 route를 분리하지 않는다.
+  - 예: 이미 `/v1/users/me`가 등록돼 있으면 `GET` 외에 `PATCH /v1/users/me`를 추가해도 같은 route entry를 재사용할 수 있다.
+- 반대로 `/v1/users/me/preferences` 같은 새 하위 경로는 exact path 등록 구조에서는 별도 route 추가가 필요하다.
+- 개별 path 등록을 줄이려면 v2에서 서비스 경계 wildcard route를 채택할 수 있다.
+  - 예: `/v1/users/**`, `/v1/auth/**`
+- wildcard route로 전환할 때는 route 우선순위, `PUBLIC/PROTECTED/INTERNAL/ADMIN` 경계, 미래 하위 경로의 과노출 여부를 함께 검증한다.
 
 ## 관련 문서
 - [Common Routing](../../shared/routing.md)

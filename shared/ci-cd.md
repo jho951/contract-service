@@ -16,6 +16,7 @@ repo별 차이는 [registry/repositories.yml](../registry/repositories.yml)의 `
 | Stage | Required | Purpose |
 | --- | --- | --- |
 | deploy-gate | yes | protected branch, tag, manual approval 확인 |
+| image | deployable only | Docker image build/push 및 immutable tag 생성 |
 | deploy | deployable only | EC2 compose, static hosting, package publish |
 | health-check | service only | health endpoint 또는 runtime ping 확인 |
 | smoke-test | yes | 배포 후 최소 기능 검증 |
@@ -25,3 +26,13 @@ repo별 차이는 [registry/repositories.yml](../registry/repositories.yml)의 `
 - `test`와 `build`는 contract 검증이 실패하면 실행하지 않는다.
 - production deploy는 protected branch 또는 tag에서만 수행한다.
 - service-specific command는 workflow에 직접 흩뿌리지 않고 `contract.lock.yml`과 `registry/repositories.yml`에 기록한다.
+- 운영 배포용 Compose는 `build:` 대신 `image:`만 사용한다.
+- build 설정과 private package 인증은 `docker/compose.build.yml` 또는 CI의 `docker build` 단계에만 둔다.
+- 운영/실행용 Compose 파일은 image pull만 담당하고, build secret을 포함하지 않는다.
+- 운영 이미지는 Amazon ECR repository를 기본으로 사용한다.
+- 단일 이미지 서비스의 repository 이름은 `${deploy_environment}-${service_name}` 형식으로 통일한다.
+- 다중 이미지 서비스는 `${deploy_environment}-${service_name}-<component>` suffix를 사용한다.
+- 실제 배포 태그는 `${GITHUB_SHA}`를 기본 immutable tag로 사용한다.
+- `latest` 태그는 `main` 또는 `master`에서만 추가 발행하고, deploy 대상 태그로 직접 사용하지 않는다.
+- EC2 또는 원격 Docker host는 CI가 만든 이미지를 `docker compose pull && docker compose up -d`로만 반영한다.
+- private repository 접근 토큰과 key는 CI 서버 또는 로컬 build 환경에만 두고, production runtime에는 주입하지 않는다.

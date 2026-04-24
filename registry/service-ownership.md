@@ -49,7 +49,7 @@
 | `redis-service` | `main` | 캐시/세션 저장 계층 운영 표준, gateway/permission cache prefix 소유 |
 | `monitoring-service` | `main` | Prometheus/Grafana/Loki 등 관측 스택과 공통 metric/log 수집 기준 |
 | `audit-log` | `main` | 모든 서비스 감사 이벤트 수집, 정규화, 보존 정책 |
-| `editor-service` | `dev` | 문서/블록 도메인, editor backend 데이터 소유 |
+| `editor-service` | `main` | 문서/블록 도메인, editor backend 데이터 소유 |
 
 ## Contract Consumers
 | Repo | Branch | Role |

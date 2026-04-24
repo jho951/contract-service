@@ -39,7 +39,11 @@
 - 서비스 내부 경로는 `/documents/**`, `/admin/**`이다.
 - v1 응답은 `GlobalResponse` envelope을 사용한다.
 - `Document`는 `visibility`, `trash`, `restore`, `move`, `transactions`를 포함한다.
-- `Block`은 `TEXT`만 지원하며, 현재 저장/이동/삭제는 transaction 기반이다.
+- `Block`은 top-level `TEXT`만 지원하며, 현재 저장/이동/삭제는 transaction 기반이다.
+- TEXT 본문은 `rich_text` JSON을 사용하고, 현재 구현은 optional `content.blockType`으로 `paragraph`, `heading1`, `heading2`, `heading3`를 허용한다.
+- `segment`는 여전히 `text`, `marks`만 허용한다. 블록 subtype은 `segment`가 아니라 `content.blockType`에 둔다.
+- editor save batch는 여러 단일 블록 operation의 순차 적용 모델이다. 현재 v1에는 여러 블록 selection 자체를 나타내는 계약이 없다.
+- 여러 블록 delete나 subtype 일괄 변경은 클라이언트가 여러 단일 operation으로 풀어 보낼 수 있지만, 여러 블록을 한 묶음으로 보존해 move하는 semantics는 v1에 없다.
 - `Block restore`는 현재 v1에 없다.
 - main 확장 목표는 shared operation core와 separated persistence를 동시에 유지하는 것이다.
 - `parentId` / `sortKey` 기반 트리 구조와 rich text payload 규칙을 유지한다.
@@ -51,6 +55,7 @@
 - `DocumentsResourcePlatformConfiguration`은 shared `operationalProfileResolver`만 제공한다. service가 `platform-resource-core` 구현을 직접 생성하지는 않는다.
 - `platform.resource.storage.root-directory`는 local fallback 저장 위치만 정하고, 운영 storage backing은 `ResourceContentStore` SPI로 교체한다.
 - prod 전용 raw `RateLimiter` bean은 남아 있지만, 현재 build에는 ratelimit bridge starter가 없다.
+- `documents-boot`는 `hibernate.type.preferred_uuid_jdbc_type=CHAR`를 사용해 현재 UUID 영속 바인딩을 문자열 기반으로 고정한다.
 
 ## 원칙
 1. v1은 현재 운영 기준이다.

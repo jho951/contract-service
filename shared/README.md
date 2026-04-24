@@ -12,6 +12,11 @@
 | [versioning.md](versioning.md)                   | 계약 버전과 public route versioning 정책             |
 | [errors.md](errors.md)                           | 공통 에러 envelope와 code 관리 원칙                    |
 | [audit.md](audit.md)                             | 공통 감사 이벤트 원칙                                  |
+| [monitoring.md](monitoring.md)                   | 공통 health/readiness/metrics 관측 기준                |
+| [deployment-topologies.md](deployment-topologies.md) | 배포 방식 이력, EC2 bootstrap 구현 기록, ECS 전환 기준 |
+| [single-ec2-deployment.md](single-ec2-deployment.md) | Free Tier 기준 단일 EC2 배포 체크리스트, env, 포트 정책 |
+| [implementation-rollup-2026-04-24.md](implementation-rollup-2026-04-24.md) | 구현 레포 반영 사항, ECR 정책, build/run 분리 요약 |
+| [terraform/shared-platform-network/README.md](terraform/shared-platform-network/README.md) | shared VPC, subnet, private hosted zone 공통 Terraform |
 | [env.md](env.md)                                 | 공통 환경변수 작성 원칙                                 |
 | [ci-cd.md](ci-cd.md)                             | 공통 CI/CD stage와 profile 기준                         |
 | [terraform.md](terraform.md)                     | MSA 공통 Terraform 구조와 모듈 분리 기준                  |
@@ -23,6 +28,7 @@
 - Downstream 서비스는 Gateway가 재주입한 trusted header만 신뢰한다.
 - 공통 에러 응답은 [errors.md](errors.md)와 [error-envelope.schema.json](../artifacts/schemas/error-envelope.schema.json)을 따른다.
 - 공통 감사 이벤트 원칙은 [audit.md](audit.md)를 따른다.
+- 공통 관측 기준은 [monitoring.md](monitoring.md)를 따른다.
 - OpenAPI 파일은 `artifacts/openapi`에 둔다.
 - 공통 Terraform 구조는 [terraform.md](terraform.md)를 따른다.
 

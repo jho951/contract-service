@@ -30,7 +30,6 @@ Client
 | `/v1/auth/**` | `PUBLIC` / `PROTECTED` | Auth-service |
 | `/v1/users/**` | `PUBLIC` / `PROTECTED` | User-service |
 | `/v1/internal/users/**` | `INTERNAL` | User-service |
-| `/v1/permissions/**` | `INTERNAL` / `ADMIN` | Authz-service |
 | `/v1/workspaces/**` | `PROTECTED` | Editor/Block domain |
 | `/v1/documents/**` | `PROTECTED` | Editor/Block domain |
 | `/v1/admin/**` | `ADMIN` | Gateway + Authz |
@@ -58,12 +57,13 @@ Client
 | --- | --- | --- |
 | Auth-service | `AUTH_SERVICE_URL` | `http://auth-service:8081` |
 | User-service | `USER_SERVICE_URL` | `http://user-service:8082` |
-| Editor service | `BLOCK_SERVICE_URL` | `http://documents-service:8083` |
-| Authz-service | `AUTHZ_SERVICE_URL` | `http://authz-service:8084` |
+| Editor service | `EDITOR_SERVICE_URL` | `http://editor-service:8083` |
+| Authz admin verify | `AUTHZ_ADMIN_VERIFY_URL` | `http://authz-service:8084/permissions/internal/admin/verify` |
 
 ## Notes
 - Gateway는 `/v1` prefix를 strip하거나 route별 rewrite를 적용해 upstream으로 전달한다.
 - Upstream service 문서에는 public `/v1` prefix를 구현 요구사항처럼 적지 않는다.
-- editor/document 도메인 route 변수명은 `BLOCK_SERVICE_URL`을 유지하고, current gateway dev compose는 host 기본값으로 `documents-service`를 사용한다.
-- Authz는 code/문서상 `authz-service`를 기준으로 설명하지만, prod compose service key는 현재 `permission-service`다.
+- current gateway runtime은 `EDITOR_SERVICE_URL`을 읽고, `BLOCK_SERVICE_URL`은 legacy fallback alias로만 허용한다.
+- Authz는 code, 문서, prod compose 모두 `authz-service`를 canonical service key로 사용한다.
+- Gateway는 현재 public `/v1/permissions/**`를 직접 proxy하지 않는다. `ADMIN` route 판정은 내부 `POST /permissions/internal/admin/verify` 호출로 수행한다.
 - Runtime alias인 `GET /v1` 같은 서비스 내부 상태 경로는 public API versioning과 별개다.

@@ -11,6 +11,7 @@
 | [readme-contract-source-monitoring.md](readme-contract-source-monitoring.md) | monitoring-service README에 넣을 contract source 섹션 |
 | [readme-contract-source-frontend.md](readme-contract-source-frontend.md) | 프론트엔드 README에 넣을 contract source 섹션 |
 | [github-actions-contract-check.yml](github-actions-contract-check.yml) | 공통 contract check, test/build, image, deploy gate workflow |
+| [single-ec2/README.md](single-ec2/README.md) | Free Tier 단일 EC2 bootstrap, compose override, `.env.prod` 템플릿 |
 
 ## Notes
 - 새 서비스 레포에는 `contract.lock.yml`을 우선 배치한다.

@@ -1,0 +1,14 @@
+services:
+  authz-service:
+    restart: unless-stopped
+    ports:
+      - "${AUTHZ_SERVICE_HOST_BIND:-127.0.0.1}:${AUTHZ_SERVICE_HOST_PORT:-8084}:8084"
+    networks:
+      service-shared:
+        aliases:
+          - authz-service
+
+networks:
+  service-shared:
+    external: true
+    name: ${SERVICE_SHARED_NETWORK:-${BACKEND_SHARED_NETWORK:-${MSA_SHARED_NETWORK:-service-backbone-shared}}}

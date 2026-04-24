@@ -15,11 +15,22 @@
 | Gateway | public routing, CORS, auth channel selection | 외부 client 접근 실패 |
 
 ## Startup Checks
+- `GET /health`가 `status=UP`를 반환한다.
+- `GET /ready`가 MySQL, Redis 의존성 기준으로 준비 상태를 반환한다.
 - `GET /`가 `service=auth-service`, `status=UP`를 반환한다.
 - `GET /v1`도 같은 status alias를 반환한다.
+- `GET /actuator/prometheus`가 operator/private network에서 응답한다.
 - `GET /.well-known/jwks.json`이 현재 JWT 알고리즘 정책과 맞게 응답한다.
 - Redis 연결이 refresh/session store와 연결되어 있다.
 - MySQL schema가 현재 entity와 맞는다.
+
+## Monitoring Baseline
+| Signal | 기준 |
+| --- | --- |
+| liveness | `/health` |
+| readiness | `/ready` |
+| metrics | `/actuator/prometheus` |
+| focus | login/refresh error rate, Redis session store, MySQL readiness, JVM/HTTP latency |
 
 ## Smoke Validation
 Auth-service를 직접 확인할 때는 upstream route를 사용한다.
@@ -27,6 +38,8 @@ Auth-service를 직접 확인할 때는 upstream route를 사용한다.
 ```bash
 curl -i http://localhost:8081/
 curl -i http://localhost:8081/v1
+curl -i http://localhost:8081/health
+curl -i http://localhost:8081/ready
 curl -i http://localhost:8081/.well-known/jwks.json
 curl -i -X POST http://localhost:8081/auth/login \
   -H 'Content-Type: application/json' \
@@ -81,3 +94,4 @@ curl -i -X POST http://localhost:8080/v1/auth/login \
 - OpenAPI 경로가 public-facing인지 upstream-facing인지 문서에 표시되어 있다.
 - Auth-service `contract.lock.yml`에는 upstream 계약과 실제 소비하는 OpenAPI만 남긴다.
 - JWT key, issuer, audience, cookie policy가 환경별 설정과 맞는다.
+- `/health`, `/ready`, `/actuator/prometheus`와 monitoring target 계약이 일치한다.

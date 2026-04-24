@@ -11,10 +11,16 @@
 ## 범위
 - move
 - transaction/save
+- page duplicate
 - reorder / rebalance
 - batch apply 성격 작업
 - 공통 sortKey policy
 - 공통 tracing / logging / validation entry
+- 사용자별 문서 personal metadata
+  - favorites
+  - recently viewed
+- 메인 카드용 page preview summary
+- 페이지 본문 안의 자식 페이지 inline block 처리
 
 ## 비범위
 - `Document`, `Block`, `Workspace`의 영속 엔티티 통합
@@ -43,6 +49,89 @@
 - editor 상호작용에서 생기는 작업이면 operation 컨트롤러로 보낸다.
 - 공통화는 request shape, command, tracing, logging, testing에서 먼저 얻는다.
 - 공통 policy는 `sortKey`, move anchor, batch apply 순서, operation status에 둔다.
+
+## 사용자별 문서 메타데이터 v2 후보
+- `favorite`와 `recently viewed`는 사용자 전역 preference가 아니라 사용자-문서 관계다.
+- source of truth는 `user-service`가 아니라 `editor-service`가 소유한다.
+- 접근 가능 여부, 문서 `visibility`, 소유권, trash 상태와 함께 평가해야 하므로 문서 도메인에서 처리한다.
+- 저장 모델은 문서 본체와 분리한 사용자별 relation 테이블을 권장한다.
+  - 예: `document_favorites(user_id, document_id, created_at)`
+  - 예: `document_recents(user_id, document_id, last_viewed_at)`
+- `favorite`는 명시적 사용자 action으로만 생성/삭제한다.
+- `recently viewed`는 문서 상세 또는 editor 진입이 성공했을 때만 upsert 한다.
+- 목록 hover, prefetch, 권한 실패, preview 실패는 recent 기록으로 취급하지 않는다.
+- recent는 같은 문서를 짧은 시간 안에 반복 진입할 때 write churn을 막기 위해 debounce/throttle 정책을 둔다.
+  - 권장: 같은 문서 60초 이내 재열람은 `last_viewed_at` 갱신 생략
+- recent 목록은 최신순 `last_viewed_at desc`로 반환하고, 보관 개수 상한을 둔다.
+  - 권장: 사용자당 최근 100개 유지
+- trash 문서나 더 이상 접근 권한이 없는 문서는 기본 favorites/recent 조회 결과에서 제외한다.
+
+## 목록 정렬 preference v2 후보
+- FE 문서 목록/LNB 하위 목록 정렬 UI는 v2에서 아래 기준을 지원한다.
+  - `manual`
+  - `name`
+  - `date_created`
+  - `date_updated`
+- `manual`은 사용자별 커스텀 순서를 뜻하지 않는다. canonical node `order`를 그대로 따르는 보기 모드다.
+- `name`, `date_created`, `date_updated`는 사용자별 list view preference로 저장한다.
+- 방향은 최소 `asc`, `desc`를 지원한다.
+  - 초기 기본값은 `manual`
+  - `name`은 FE에서 방향 토글 UI를 둘 수 있다.
+  - `date_created`, `date_updated`도 direction 필드를 재사용해 asc/desc를 표현할 수 있다.
+- preference scope는 전역 하나가 아니라 목록 문맥별로 저장할 수 있어야 한다.
+  - 예: 전체 문서 목록
+  - 예: 특정 parent page의 child page 목록
+  - 예: trash 목록
+- source of truth는 localStorage가 아니라 backend relation/preference 저장소다.
+- 브라우저가 바뀌어도 같은 사용자는 같은 정렬 기준을 받아야 한다.
+- 정렬 기준 preference는 canonical tree order를 바꾸지 않는다.
+- drag/drop reorder는 `manual` 모드에서만 직접 노출하는 방향을 권장한다.
+
+## 카드 preview v2 후보
+- 메인 페이지 카드 preview의 기본 모델은 bitmap 이미지가 아니라 snapshot 기반 summary다.
+- source of truth는 문서 본문 DB와 마지막으로 합의된 서버 snapshot이며, 카드 preview는 그 파생 표현이다.
+- 카드 preview는 첫 3~5개 visible block을 축약해 미니 문서처럼 렌더하는 것을 기본값으로 둔다.
+  - 예: `paragraph`, `heading1`, `heading2`, `heading3`
+- preview summary는 문서 상세 API 전체를 다시 내려받지 않고 카드 렌더에 필요한 최소 필드만 포함한다.
+- preview summary는 stale 허용 데이터다.
+  - 저장 직후 즉시 최신화되지 않아도 목록 UX를 깨지 않는 범위에서 허용한다.
+- preview 생성 실패는 문서 저장 실패로 전파하지 않는다.
+  - preview만 비어 있고 카드 자체는 fallback UI로 렌더할 수 있어야 한다.
+- bitmap thumbnail은 v2 기본선이 아니다.
+- 이미지 thumbnail이 필요해지면 별도 비동기 파생 리소스로 취급한다.
+  - 예: `document-thumbnail`
+  - 문서 save transaction 안에서 동기 생성하지 않는다.
+  - 실패해도 문서 CRUD, favorites, recent 흐름에는 영향을 주지 않는다.
+
+## 문서 복제 v2 후보
+- 문서 복제는 v1 범위가 아니다. FE 문서 액션과 backend API를 함께 v2로 올린다.
+- source of truth는 `editor-service`이며, FE는 duplicate command를 직접 로컬 조합하지 않고 backend duplicate API를 호출한다.
+- 복제 대상은 `PAGE` node와 그 body subtree 전체다.
+  - 제목
+  - icon / cover
+  - visible body child node
+  - inline child page subtree
+  - preview 생성에 필요한 파생 입력
+- 복제 결과는 새 `nodeId`와 새 ordering anchor를 가진 독립 페이지여야 한다.
+- 사용자별 relation 데이터는 원본에서 자동 복제하지 않는다.
+  - `favorite`
+  - `recently viewed`
+  - 공유 토글/권한 결과 캐시
+- 기본 제목 정책은 `"원본 제목의 사본"` 계열 suffix를 허용하되, locale별 문자열은 FE/BE 협의로 고정한다.
+- 큰 subtree 복제는 단순 sync insert 루프가 아니라 backend batch/copy orchestration으로 처리한다.
+- preview summary는 복제 직후 stale이거나 비어 있어도 되지만, 본문 원본은 정합하게 복제되어야 한다.
+
+## 자식 페이지 inline block v2 후보
+- 현재 v1은 `Document.sortKey` 축과 `Block.sortKey` 축이 분리돼 있다.
+- 따라서 자식 페이지를 텍스트 블록들 사이에 끼워 넣거나, 블록과 같은 ordering axis에서 함께 이동시키는 것은 v1 범위가 아니다.
+- FE에서 요구하는 "페이지 안의 페이지를 하나의 블록처럼 렌더하고 이동" UX는 editor-server v2 계약으로 올린다.
+- v2에서는 페이지 본문을 `PAGE`와 `BLOCK`이 함께 존재할 수 있는 mixed node body로 본다.
+- 같은 부모 `PAGE` 아래의 자식 `PAGE`와 자식 `BLOCK`은 하나의 공통 `order` 축을 공유해야 한다.
+- inline child page는 별도 reference가 아니라 실제 body child node다.
+- 즉, parent page 본문 조회 결과에는 text block과 child page block이 섞인 순서대로 내려와야 한다.
+- child page block 이동은 블록 이동과 다른 별도 UX가 아니라 공통 node move semantics로 처리한다.
+- child page block의 카드형 미리보기 텍스트, 아이콘, 제목은 `PageMeta`와 `PagePreview` 파생 데이터로 구성할 수 있다.
+- 현재 FE에서 임시로 구현한 "본문 아래 별도 child page section"은 v1 한계 대응용이며, canonical body model은 아니다.
 
 ## 주요 흐름
 ### move

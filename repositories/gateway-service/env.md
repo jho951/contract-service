@@ -10,8 +10,7 @@
 ## 라우팅 및 프록시
 - `AUTH_SERVICE_URL=http://auth-service:8081`
 - `USER_SERVICE_URL=http://user-service:8082`
-- `BLOCK_SERVICE_URL=http://documents-service:8083`
-- `AUTHZ_SERVICE_URL=http://authz-service:8084`
+- `EDITOR_SERVICE_URL=http://editor-service:8083`
 - `AUTHZ_ADMIN_VERIFY_URL=http://authz-service:8084/permissions/internal/admin/verify`
 - `REDIS_HOST=central-redis`
 - `REDIS_PORT=6379`
@@ -19,8 +18,10 @@
 - `GATEWAY_FORWARD_AUTHORIZATION_HEADER=false`
 - `REDIS_PASSWORD`와 `REDIS_TIMEOUT_MS`는 Redis 연결 안정화를 위한 선택값이다.
 - 코드 기본값은 `REDIS_HOST=127.0.0.1`이지만, current gateway dev compose 기본값은 `central-redis`다.
-- current gateway dev compose는 `BLOCK_SERVICE_URL=http://documents-service:8083`를 기본값으로 둔다.
-- prod compose는 upstream URL을 env로 강제하고, terraform 예제에도 `documents-service`, `central-redis`가 남아 있다.
+- current gateway dev compose는 `EDITOR_SERVICE_URL=http://editor-service:8083`를 기본값으로 둔다.
+- `BLOCK_SERVICE_URL`은 current runtime에서만 허용하는 legacy fallback alias다.
+- current gateway runtime은 `AUTHZ_SERVICE_URL`을 직접 읽지 않는다. 관리자 인가 위임은 `AUTHZ_ADMIN_VERIFY_URL` 하나로 결정한다.
+- prod/terraform 예제에는 `documents-service` alias가 남아 있을 수 있으므로 `EDITOR_SERVICE_URL` 전환 시 함께 점검한다.
 - `GATEWAY_FORWARD_AUTHORIZATION_HEADER`는 현재 핸들러의 주요 경로에서는 사용되지 않고, 호환성/전환용 설정으로 남아 있다.
 - 현재 구현은 외부 `Authorization`을 그대로 전달하지 않고 제거한 뒤, 인증 성공 시 내부 JWT만 다시 넣는다.
 
@@ -73,34 +74,27 @@ Bearer 토큰 검증 결과를 캐싱할 때 사용하는 설정이다.
 - 기본값: `gateway:session:`
 
 ## 권한 / 관리자 정책
-### `GATEWAY_PERMISSION_CACHE_TTL_SECONDS`
+### `GATEWAY_AUTHZ_CACHE_TTL_SECONDS`
 - 타입: `number`
 - 기본값: `300`
 
-### `GATEWAY_PERMISSION_CACHE_ENABLED`
+### `GATEWAY_AUTHZ_CACHE_ENABLED`
 - 타입: `boolean`
 - 기본값: `false`
 - 설명:
   - `true`면 관리자 경로 판정 결과를 짧게 캐시한다.
   - `false`면 Authz에 매번 위임한다.
 
-### `GATEWAY_PERMISSION_CACHE_PREFIX`
+### `GATEWAY_AUTHZ_CACHE_PREFIX`
 - 타입: `string`
-- 기본값: `gateway:admin-permission:`
-
-### `AUTHZ_SERVICE_URL`
-- 타입: `string`
-- 기본값: `http://authz-service:8084`
-- 설명:
-  - 관리자 경로 인가 판정용 Authz 기본 URI다.
-- 비고:
-  - current authz prod compose service key는 `permission-service`다. 운영에서는 env override로 실제 host를 맞춘다.
+- 기본값: `gateway:admin-authz:`
 
 ### `AUTHZ_ADMIN_VERIFY_URL`
 - 타입: `string`
 - 기본값: `http://authz-service:8084/permissions/internal/admin/verify`
 - 설명:
   - Gateway가 관리자 경로 판정을 위임할 때 호출하는 실제 엔드포인트다.
+  - 값을 비우면 current runtime은 추가 관리자 인가 검증을 끈다. 정상 운영에서는 설정을 유지한다.
 
 ## IP Guard
 ### `GATEWAY_IP_GUARD_ENABLED`
@@ -165,6 +159,33 @@ Bearer 토큰 검증 결과를 캐싱할 때 사용하는 설정이다.
 - 설명:
   - `INTERNAL` 라우트 허용 여부를 판정하는 공유 시크릿이다.
   - 비워 두면 `GATEWAY_INTERNAL_JWT_SHARED_SECRET`를 재사용한다.
+
+### `AUTH_SERVICE_INTERNAL_REQUEST_SECRET`
+- 타입: `string`
+- 기본값: 없음
+- 설명:
+  - Gateway가 auth-service 내부 세션 검증 호출에 붙이는 caller proof secret이다.
+  - 비우면 `AUTH_INTERNAL_REQUEST_SECRET`, 그다음 `GATEWAY_INTERNAL_REQUEST_SECRET` 순으로 fallback한다.
+
+## Authz 내부 호출 JWT
+### `AUTHZ_INTERNAL_JWT_SECRET`
+- 타입: `string`
+- 기본값: 없음
+- 설명:
+  - Gateway가 authz-service 내부 호출에 서명할 때 쓰는 전용 shared secret이다.
+  - 비우면 `GATEWAY_INTERNAL_JWT_SHARED_SECRET`를 재사용한다.
+
+### `AUTHZ_INTERNAL_JWT_ISSUER`
+- 타입: `string`
+- 기본값: `api-gateway`
+
+### `AUTHZ_INTERNAL_JWT_AUDIENCE`
+- 타입: `string`
+- 기본값: `authz-service`
+
+### `AUTHZ_INTERNAL_JWT_TTL_SECONDS`
+- 타입: `number`
+- 기본값: `GATEWAY_INTERNAL_JWT_TTL_SECONDS`와 동일
 
 ## JWT 검증 설정
 ### `AUTH_JWT_VERIFY_ENABLED`
@@ -282,12 +303,12 @@ Bearer 토큰 검증 결과를 캐싱할 때 사용하는 설정이다.
 - `AUTH_JWT_ALGORITHM`은 실제 auth-service 설정과 일치시킨다
 - RSA 계열이면 `AUTH_JWT_PUBLIC_KEY_PEM` 설정
 - HS 계열이면 `AUTH_JWT_SHARED_SECRET` 설정
-- `BLOCK_SERVICE_URL=http://documents-service:8083`
-- `AUTHZ_SERVICE_URL=http://authz-service:8084`
+- `EDITOR_SERVICE_URL=http://editor-service:8083`
 - `AUTHZ_ADMIN_VERIFY_URL=http://authz-service:8084/permissions/internal/admin/verify`
 - `REDIS_HOST=central-redis`
 - `AUTH_JWT_AUDIENCE`는 정책이 있으면 명시, 없으면 비움
 - 운영 환경에서는 `GATEWAY_INTERNAL_REQUEST_SECRET`과 IP guard 목록도 명시하는 것이 좋다.
+- legacy env를 아직 쓰면 `BLOCK_SERVICE_URL`만 fallback으로 허용한다.
 
 ## 개발 환경
 - 필요 시 `AUTH_JWT_VERIFY_ENABLED=false`
