@@ -1489,3 +1489,32 @@ git diff --check
 - 테스트:
   - service test에 `trash 문서 delete` 케이스를 추가한다.
   - integration test에 `PATCH /documents/{id}/trash -> DELETE /documents/{id}` 성공 케이스를 추가한다.
+
+### 26. editor-page save가 400으로 보일 때 실제 원인이 `BLOCK_DELETE`의 MySQL 1093인지 먼저 본다
+
+#### 증상
+- 브라우저 네트워크 탭에서는 `POST /v1/editor-operations/documents/{documentId}/save`가 `400 Bad Request`처럼 보인다.
+- 단순 `BLOCK_REPLACE_CONTENT`는 되는데, 빈 블록 삭제나 block delete가 섞인 save batch에서만 저장이 실패한다.
+- FE payload shape는 얼핏 정상인데 저장이 안 된다.
+
+#### 원인
+- 실제 실패 지점이 request validation이 아니라 block soft delete bulk update일 수 있다.
+- `BlockRepository.softDeleteActiveByIdsWithRootVersion(...)`처럼 `update blocks ... where exists (select ... from blocks ...)` 형태로 같은 테이블을 subquery에서 다시 참조하면 MySQL에서 `SQL Error 1093: You can't specify target table ... for update in FROM clause`가 난다.
+- Gateway/FE에서는 최종적으로 generic `400` 또는 저장 실패처럼만 보일 수 있어서 request shape 문제로 오해하기 쉽다.
+
+#### 확인
+- `docker logs` 또는 service 로그에서 `SQL Error: 1093`, `You can't specify target table`가 찍히는지 본다.
+- 같은 문서에 대해 수동 `BLOCK_REPLACE_CONTENT` save는 성공하고 `BLOCK_DELETE` save만 실패하는지 본다.
+- 실패 시점의 repository bulk update가 같은 `blocks` 테이블을 subquery에서 다시 참조하는지 본다.
+
+#### 조치
+1. `BLOCK_DELETE`는 root block CAS 삭제와 descendant soft delete를 한 번의 same-table subquery bulk update로 처리하지 않는다.
+2. root는 `softDeleteRootByIdAndVersion(rootId, rootVersion, actorId, deletedAt)`처럼 별도 update로 먼저 처리한다.
+3. root update row count가 `0`이면 `CONFLICT`로 본다.
+4. descendant는 `softDeleteActiveDescendantsByIds(blockIds, rootId, actorId, deletedAt)`처럼 root 제외 bulk update로 따로 처리한다.
+5. service는 기존처럼 subtree ID 수집, attachment purge scheduling, document version 증가 흐름을 유지한다.
+
+#### 테스트
+- `BlockServiceImplTest`에 root-first delete 경로 검증을 추가하거나 갱신한다.
+- `EditorOperationApiIntegrationTest`의 existing block delete 성공 케이스가 실제 DB에서 통과하는지 확인한다.
+- 로컬 dev docker 재기동 후 `POST /v1/editor-operations/documents/{documentId}/save` + `BLOCK_DELETE` 수동 요청으로 다시 확인한다.
