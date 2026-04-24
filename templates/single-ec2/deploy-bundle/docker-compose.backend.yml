@@ -47,7 +47,7 @@ services:
           - central-redis-exporter-dev
 
   auth-mysql:
-    image: mysql:8.0
+    image: ${AUTH_MYSQL_IMAGE:-mysql:8.0}
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: ${MYSQL_DB:-authdb}
@@ -94,7 +94,7 @@ services:
       auth-private: {}
 
   mysql:
-    image: mysql:8.4
+    image: ${USER_MYSQL_IMAGE:-mysql:8.4}
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-user_service}
@@ -156,7 +156,7 @@ services:
           - authz-service
 
   editor-mysql:
-    image: mysql:8.0
+    image: ${EDITOR_MYSQL_IMAGE:-mysql:8.0}
     container_name: documents-mysql-prod
     restart: always
     environment:
@@ -192,6 +192,11 @@ services:
       SPRING_PROFILES_ACTIVE: prod
       SERVER_PORT: ${SERVER_PORT_EDITOR:-8083}
       DB_URL_PROD: ${DB_URL_PROD:-jdbc:mysql://editor-mysql:3306/${DB_NAME_PROD:-documentsdb}?useSSL=false&allowPublicKeyRetrieval=true&useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&serverTimezone=Asia/Seoul}
+      DB_USERNAME_PROD: ${DB_USERNAME_PROD:-documents}
+      DB_PASSWORD_PROD: ${DB_PASSWORD_PROD:?DB_PASSWORD_PROD is required}
+      SPRING_DATASOURCE_URL: ${DB_URL_PROD:-jdbc:mysql://editor-mysql:3306/${DB_NAME_PROD:-documentsdb}?useSSL=false&allowPublicKeyRetrieval=true&useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&serverTimezone=Asia/Seoul}
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME_PROD:-documents}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD_PROD:?DB_PASSWORD_PROD is required}
     networks:
       documents-private: {}
       service-shared:
