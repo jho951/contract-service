@@ -13,6 +13,7 @@
 `platform-owned`와 `2계층`은 같은 말이 아니다. 미래에 `Governance-server`나 `Resource-metadata-server`가 생기면 플랫폼 성격을 갖더라도 deploy되고 상태/workflow를 소유하므로 3계층으로 분류한다.
 
 의존 방향은 항상 `3계층 -> 2계층 -> 1계층`이다. 3계층은 2계층의 BOM, starter, api/spi, configuration properties만 compile surface로 소비하고, 2계층의 autoconfigure/core/internal 구현 class를 직접 import하지 않는다.
+sanctioned add-on, public SPI, temporary compat seam 구분은 [contract-oss.md](contract-oss.md)를 기준으로 본다.
 
 ## Repo Classification
 

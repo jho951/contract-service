@@ -17,22 +17,23 @@
 3계층 서비스는 1계층 OSS를 직접 조립하지 않고 2계층 platform starter/BOM과 sanctioned add-on, public SPI를 소비한다.
 
 기준은 local `BE/platform` 구현과 각 서비스 main 브랜치 build 파일이다.
+세부 사용 계약과 breaking change는 [contract-oss.md](contract-oss.md)를 source of truth로 본다.
 
 | Platform | Current Service Baseline | Absorbs | Purpose |
 | --- | --- | --- | --- |
-| `platform-security` | `3.0.1` 기본선. `editor-service`는 아직 `3.0.0`을 pin | `auth`, `ip-guard`, `rate-limiter` | 인증/인가 기본 조립, boundary, gateway header, IP guard, rate limit |
-| `platform-governance` | `3.0.1` 기본선. `editor-service`는 아직 `3.0.0`을 pin | `audit-log`, `policy-config`, plugin-policy-engine config compatibility | 감사, 운영 정책, policy config, governance decision chain |
-| `platform-resource` | `3.0.0` | `file-storage`, `notification` | resource lifecycle, metadata/catalog, storage/notification orchestration |
-| `platform-integrations` | `3.0.1` runtime BOM 기준. `editor-service` bridge는 아직 `2.0.0` | platform bridge | security/resource event를 governance audit으로 연결하는 optional bridge |
+| `platform-security` | `4.0.0` | `auth`, `ip-guard`, `rate-limiter` | 인증/인가 기본 조립, boundary, gateway header, IP guard, rate limit |
+| `platform-governance` | `4.0.0` | `audit-log`, `policy-config`, plugin-policy-engine config compatibility | 감사, 운영 정책, policy config, governance decision chain |
+| `platform-resource` | `4.0.0` | `file-storage`, `notification` | resource lifecycle, metadata/catalog, storage/notification orchestration |
+| `platform-integrations` | `4.0.0` | platform bridge | security/resource event를 governance audit으로 연결하는 optional bridge |
 
 ### 서비스별 적용 매트릭스
 | Service | Current Modules | Notes |
 | --- | --- | --- |
-| `gateway-service` | `platform-runtime-bom 3.0.1`, `platform-governance-starter`, `platform-security-starter`, `platform-security-hybrid-web-adapter`, `platform-security-governance-bridge` | Gateway 고유 `GatewayPlatformSecurityWebFilter`와 `HybridSecurityRuntime`이 edge flow를 소유한다. |
-| `auth-service` | `platform-runtime-bom 3.0.1`, `platform-governance-starter`, `platform-security-starter`, `platform-security-auth-bridge-starter`, `platform-security-ratelimit-bridge-starter`, `platform-security-governance-bridge` | cookie/session bridge와 issuer adapter를 서비스가 제공하고, platform starter가 이를 소비한다. |
-| `user-service` | `platform-runtime-bom 3.0.1`, `platform-governance-starter`, `platform-security-starter`, `platform-security-ratelimit-bridge-starter`, `platform-security-governance-bridge` | `AuditSink`, `JwtDecoder`, prod Redis `RateLimiter`를 서비스가 제공한다. |
-| `authz-service` | `platform-runtime-bom 3.0.1`, `platform-governance-starter`, `platform-security-starter`, `platform-security-legacy-compat`, `platform-security-web-api`, `platform-security-governance-bridge` | internal auth 기본 모드는 `HYBRID`이고 legacy secret compat를 아직 유지한다. |
-| `editor-service` | `platform-runtime-bom 3.0.1`, `platform-governance/security/resource BOM 3.0.0`, `platform-governance-starter`, `platform-security-starter`, `platform-security-web-api`, `platform-resource-starter`, `platform-resource-jdbc`, `platform-security-governance-bridge 2.0.0`, `platform-resource-governance-bridge 2.0.0`, runtime `platform-resource-support-local` | local resource backing은 support-local이 맡고, 운영 storage 위치만 서비스가 정한다. |
+| `gateway-service` | `platform-runtime-bom 4.0.0`, `platform-governance-starter`, `platform-security-starter`, `platform-security-hybrid-web-adapter`, `platform-security-governance-bridge` | `GatewayPlatformSecurityConfiguration`이 `GovernanceAuditSink`, additive `SecurityPolicy`, `HybridSecurityRuntime`을 등록하고, edge flow는 `GatewayPlatformSecurityWebFilter`가 소유한다. |
+| `auth-service` | `platform-runtime-bom 4.0.0`, `platform-governance-starter`, `platform-security-starter`, `platform-security-governance-bridge` | `PlatformTokenIssuerPort`, `PlatformSessionIssuerPort`, `PlatformSessionSupportFactory`, `PlatformRateLimitPort`, `GovernanceAuditSink`를 서비스가 직접 제공한다. |
+| `user-service` | `platform-runtime-bom 4.0.0`, `platform-governance-starter`, `platform-security-starter`, `platform-security-governance-bridge` | `UserPlatformRuntimeConfiguration`이 `GovernanceAuditSink`, JWT decoder, prod Redis 기반 `PlatformRateLimitPort`를 제공한다. |
+| `authz-service` | `platform-runtime-bom 4.0.0`, `platform-governance-starter`, `platform-security-starter`, `platform-security-web-api`, `platform-security-governance-bridge` | platform-owned internal auth flow, `GovernanceAuditSink`, prod Redis 기반 `PlatformRateLimitPort`를 쓴다. 2026-04-25 CD는 stale container 제거 후 정상 배포됐다. |
+| `editor-service` | `platform-runtime-bom 4.0.0`, `platform-governance/security/resource BOM 4.0.0`, `platform-governance-starter`, `platform-security-starter`, `platform-security-web-api`, `platform-resource-starter`, `platform-resource-jdbc`, `platform-security-governance-bridge 4.0.0`, `platform-resource-governance-bridge 4.0.0`, runtime `platform-resource-support-local` | `GovernanceAuditSink`, prod Redis 기반 `PlatformRateLimitPort`는 platform-owned contract로 옮겼다. 다만 현재 storage backing에는 `file-storage-core:2.0.0` 직접 사용이 남아 있다. |
 | `monitoring-service` | only if it becomes a custom Spring Boot/admin API service | observability wrapper는 현재 2계층 platform 소비 대상이 아니다. |
 | `redis-service` | not applied | real Redis infra는 현재 2계층 platform 소비 대상이 아니다. |
 
@@ -41,18 +42,21 @@
 - 서비스 차이는 platform 내부 모듈이 아니라 `platform.security.service-role-preset` 같은 preset과 service-owned collaborator bean으로 표현한다.
 - bridge artifact는 기본 탑재가 아니라 두 platform의 event/audit 연결이 필요할 때만 추가한다.
 - 서비스는 보안/감사 framework를 만들지 않고 도메인 rule과 use case만 구현한다.
-- platform-governance의 공식 운영 sink SPI는 `AuditSink`다.
-- 서비스 도메인 audit 구현은 `AuditLogRecorder`보다 `AuditLogger` 또는 `AuditSink`를 우선 사용한다.
-- `AuditLogRecorder`는 `platform-governance-adapter-auditlog`에 있는 bridge/test/compat용 adapter로 보고, mainline starter surface로 설명하지 않는다.
+- platform-governance의 공식 운영 sink SPI는 `GovernanceAuditSink`다.
+- governance audit entry publish SPI는 `GovernanceAuditRecorder`다.
+- `AuditLogRecorder`는 제거된 legacy seam으로 보고, mainline starter surface나 새 서비스 구현 가이드에서 설명하지 않는다.
+- `platform-security-auth-bridge-starter`, `platform-security-ratelimit-bridge-starter`는 optional migration path이며, 현재 `gateway/auth/authz/user/editor` mainline baseline에는 포함하지 않는다.
 - `redis-service`가 실제 Redis 인프라라면 2계층 platform 적용 대상이 아니다.
 - `monitoring-service`가 Prometheus/Grafana wrapper라면 2계층 platform 적용 대상이 아니다.
 
 ### 현재 적용 예외
 - `gateway-service`는 `platform-security-hybrid-web-adapter`를 sanctioned add-on으로 쓰지만, gateway 고유 `GatewayPlatformSecurityWebFilter`와 `HybridSecurityRuntime`이 edge filter chain을 계속 소유한다. `GatewayApplication`은 `PlatformSecurityHybridWebAdapterAutoConfiguration`만 exclude 한다.
-- `auth-service`는 `AuthPlatformIssuerAdaptersConfiguration`에서 raw `TokenService`, `SessionStore` adapter를 만들고, `PlatformSecurityRequestAttributeBridgeFilter`가 cookie/session과 internal caller proof를 request attribute로 브리지한다.
-- `user-service`는 `UserPlatformRuntimeConfiguration`에서 `AuditSink`, `JwtDecoder`, prod Redis `RateLimiter`를 제공한다.
-- `authz-service`는 `platform-security-legacy-compat`와 `AuthzInternalRequestAuthorizer`를 함께 사용해 `JWT`와 legacy secret 호환 경로를 `HYBRID` 모드로 유지한다. prod 전용 raw `RateLimiter` bean은 남아 있지만 bridge starter는 아직 추가하지 않았다.
-- `editor-service`는 더 이상 `platform-resource-core` 구현을 직접 가져오지 않는다. local fallback은 runtime `platform-resource-support-local`이 맡고, 서비스는 `platform-security-web-api`로 custom `SecurityFailureResponseWriter`만 구현한다. 다만 prod 전용 raw `RateLimiter` bean은 남아 있고 bridge starter는 아직 추가하지 않았다.
+- `editor-service`는 더 이상 `platform-resource-core` 구현을 직접 생성하지 않는다. local fallback은 runtime `platform-resource-support-local`이 맡고, 서비스는 `platform-security-web-api`로 custom `SecurityFailureResponseWriter`를 구현한다. 다만 현재 storage backing에는 `file-storage-core:2.0.0` 직접 사용이 남아 있어 resource mainline cleanup은 미완료다.
+
+### 4.0.0 Rollout Status
+- 2026-04-25 기준 `gateway-service`, `auth-service`, `authz-service`, `user-service`, `editor-service`는 published `platform 4.0.0`을 소비하는 main 브랜치 상태로 정리됐다.
+- 서비스 CD는 5개 모두 성공했고, `authz-service`는 stale `authz-service` container를 recreate 전에 제거하는 guard를 추가해 single-EC2 배포를 안정화했다.
+- 남은 직접 1계층 사용 잔여는 `editor-service`의 current storage backing용 `file-storage-core:2.0.0`이다.
 
 ### 감사 이벤트 대상
 | Service | Representative Events |

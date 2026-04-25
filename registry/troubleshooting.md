@@ -1085,7 +1085,7 @@ git diff --check
 - `repositories/gateway-service/security.md`
 
 #### 조치
-1. Gateway 기준 platform 조합은 `platform-runtime-bom 3.0.1`, `platform-governance-bom 3.0.1`, `platform-security-bom 3.0.1`, `platform-security-hybrid-web-adapter 3.0.1`로 같이 맞춘다.
+1. Gateway 기준 platform 조합은 `platform-runtime-bom 4.0.0`, `platform-governance-bom 4.0.0`, `platform-security-bom 4.0.0`, `platform-security-hybrid-web-adapter 4.0.0`으로 같이 맞춘다.
 2. `GatewayApplication`은 `PlatformSecurityHybridWebAdapterAutoConfiguration`만 exclude 하고, platform starter 전체를 꺼서는 안 된다.
 3. Spring Boot / Spring Cloud 정합성도 함께 본다. 현재 gateway-service root plugin baseline은 `Spring Boot 3.4.10`, `Spring Cloud 2024.0.1`이다.
 
@@ -1322,31 +1322,32 @@ git diff --check
 - `repositories/authz-service/README.md`
 
 #### 조치
-1. 구현 레포 기준 현재 baseline은 `auth/user/authz/gateway = platform-runtime-bom 3.0.1`, `editor = runtime-bom 3.0.1 + governance/security/resource 3.0.0 + bridges 2.0.0`으로 기록한다.
+1. 구현 레포 기준 현재 baseline은 `gateway/auth/authz/user/editor = platform-runtime-bom 4.0.0`으로 기록하고, `editor-service`는 governance/security/resource BOM과 bridge도 `4.0.0`으로 맞춘다.
 2. Gateway는 `platform-security-hybrid-web-adapter`와 service-owned `GatewayPlatformSecurityWebFilter`, `HybridSecurityRuntime`을 함께 쓰는 현재 구조로 적는다.
-3. Auth-service는 `platform-security-auth-bridge-starter`, `platform-security-ratelimit-bridge-starter`를, User-service는 `platform-security-ratelimit-bridge-starter`를 소비한다고 적는다.
-4. Authz-service는 `platform-security-legacy-compat`, `platform-security-web-api`, `AuthzInternalRequestAuthorizer` 기반 `HYBRID` internal auth compat를 유지한다고 적는다.
+3. Auth-service는 `PlatformTokenIssuerPort`, `PlatformSessionIssuerPort`, `PlatformSessionSupportFactory`, `PlatformRateLimitPort`를, User-service는 `GovernanceAuditSink`, `PlatformRateLimitPort`를 직접 제공한다고 적는다.
+4. Authz-service는 `platform-security-web-api`, `AuthzInternalRequestAuthorizer` 기반 `HYBRID` internal auth flow로 정리하고, 제거된 legacy compat 경로는 남기지 않는다고 적는다.
 5. Editor-service는 `platform-resource-support-local` runtime fallback과 `platform-security-web-api` 기반 custom failure writer를 쓰는 현재 구조로 적는다.
 
-### 18. platform-governance 공식 SPI는 `AuditSink`이고, 서비스 도메인 audit는 `AuditLogger` 또는 `AuditSink`를 우선한다
+### 18. platform-governance 공식 SPI는 `GovernanceAuditSink`이고, audit entry publish는 `GovernanceAuditRecorder`를 사용한다
 #### 증상
-- prod 운영 설정에는 `AuditSink` bean이 있는데, 도메인 서비스 코드나 문서는 여전히 `AuditLogRecorder` 직접 주입을 기준으로 설명한다.
-- 서비스 개발자가 `AuditLogRecorder`를 공식 sink SPI로 오해한다.
+- prod 운영 설정에는 `GovernanceAuditSink` bean이 있는데, 도메인 서비스 코드나 문서는 여전히 제거된 `AuditLogRecorder` 이름 또는 old `AuditSink` 기준으로 설명한다.
+- 서비스 개발자가 제거된 legacy recorder 이름을 공식 sink SPI로 오해한다.
 
 #### 원인
-- 현재 `AuditLogRecorder`는 mainline starter surface가 아니라 `platform-governance-adapter-auditlog` 쪽 bridge/test/compat adapter다.
-- 이전 구현이 `AuditLogRecorder`를 직접 사용하던 시기의 문서가 남아 있을 수 있다.
+- `AuditLogRecorder`는 제거된 legacy seam이고, mainline starter surface에 더 이상 존재하지 않는다.
+- governance 공식 contract가 `GovernanceAuditSink`, `GovernanceAuditRecorder`로 바뀌었는데 이전 문서가 남아 있을 수 있다.
 
 #### 확인
+- `registry/contract-oss.md`
 - `registry/module-ecosystem.md`
 - `repositories/auth-service/README.md`
 - `repositories/user-service/README.md`
 - `repositories/authz-service/README.md`
 
 #### 조치
-1. 운영 sink SPI는 `AuditSink`로 본다.
-2. 서비스 도메인 audit 구현은 `AuditLogger` 또는 `AuditSink`를 우선 사용한다.
-3. `AuditLogRecorder`는 `platform-governance-adapter-auditlog`에 있는 bridge/test/compat adapter로 설명하고, 새 서비스 구현의 기본 선택지로 적지 않는다.
+1. 운영 sink SPI는 `GovernanceAuditSink`로 본다.
+2. governance audit entry publish는 `GovernanceAuditRecorder`를 기준으로 설명한다.
+3. 제거된 `AuditLogRecorder` 이름은 migration 문맥에서만 언급하고, 새 서비스 구현의 기본 선택지로 적지 않는다.
 
 ### 19. editor-page base URL에 `/v1`를 넣으면 요청 경로가 `/v1/v1/...`로 깨진다
 #### 증상
@@ -2157,3 +2158,24 @@ git diff --check
 1. 서비스 repo CD는 `./scripts/deploy-stack.sh up <service-name>` 형태의 단건 배포만 하게 바꾼다.
 2. `monitoring-service`처럼 여러 compose service가 한 repo에 있으면 `prometheus grafana loki promtail`처럼 필요한 대상만 명시한다.
 3. 전체 stack 재기동은 bootstrap/수동 운영 작업으로만 분리한다.
+
+### 56. `authz-service` CD가 `Error when allocating new name: Conflict`로 실패하면 stale service container를 먼저 제거해야 한다
+
+#### 증상
+- `service-authz`의 `Image` job은 성공하는데 `Deploy -> Deploy to EC2`만 실패한다.
+- 로그에 `Container ... Recreate` 직후 `Error when allocating new name: Conflict`가 나온다.
+- 같은 run에서 ECR pull과 `authz-mysql` 기동은 이미 성공한다.
+
+#### 원인
+- single-EC2 bundle에 이전 `authz-service` container가 남아 있으면 `docker compose up -d --force-recreate --no-deps authz-service`가 이름 충돌로 죽을 수 있다.
+- 이 경우 원인은 `platform 4.0.0` dependency 해상도가 아니라 remote deploy host의 stale container 상태다.
+
+#### 확인
+- `service-authz`의 `CD -> Deploy to EC2` 로그
+- remote `/opt/deploy/docker-compose.backend.yml`
+- remote `docker ps -a --filter name=authz-service`
+
+#### 조치
+1. recreate 전에 `docker compose --env-file .env.backend -f docker-compose.backend.yml rm -sf authz-service || true`를 먼저 실행한다.
+2. 그 다음 `docker compose --env-file .env.backend -f docker-compose.backend.yml up -d --force-recreate --no-deps authz-service`로 다시 올린다.
+3. image pull과 DB 기동은 이미 정상이라면 package/GitHub Packages 쪽 디버깅보다 deploy host stale state를 먼저 본다.

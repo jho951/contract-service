@@ -9,6 +9,8 @@
 | [repositories.yml](repositories.yml) | machine-readable repository registry |
 | [adoption-matrix.md](adoption-matrix.md) | repository별 계약 반영 상태 |
 | [service-ownership.md](service-ownership.md) | repo 계층 분류와 소유권 |
+| [contract-oss.md](contract-oss.md) | 1/2/3계층 OSS/platform 사용 계약과 breaking change |
+| [platform-4.0.0-adoption.md](platform-4.0.0-adoption.md) | `platform 4.0.0` private release 적용 절차와 서비스별 체크리스트 |
 | [deployment-topology.md](deployment-topology.md) | EC2 기준 배포, network, security group, 운영 체크리스트 |
 | [module-ecosystem.md](module-ecosystem.md) | 공통 모듈과 외부 모듈 책임 |
 | [adoption-playbook.md](adoption-playbook.md) | 서비스 레포에 contract 기준을 도입하는 절차 |
